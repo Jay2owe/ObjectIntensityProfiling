@@ -1,0 +1,41 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+
+# oc3d-core is a build-time chassis, not a Maven-hosted dependency or a second
+# Fiji plugin. Keep this ref aligned with the version declared in pom.xml.
+env:
+  OC3D_CORE_REPO: Jay2owe/oc3d-core
+  OC3D_CORE_REF: v0.1.0
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the plugin
+        uses: actions/checkout@v4
+        with:
+          path: plugin
+
+      - name: Check out oc3d-core
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.OC3D_CORE_REPO }}
+          ref: ${{ env.OC3D_CORE_REF }}
+          path: oc3d-core
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Build and install oc3d-core
+        run: mvn --batch-mode --no-transfer-progress -f oc3d-core/pom.xml clean install
+
+      - name: Build and verify the plugin
+        working-directory: plugin
+        run: ./mvnw --batch-mode --no-transfer-progress clean verify
