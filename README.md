@@ -329,7 +329,8 @@ GitHub. https://github.com/Jay2owe/ObjectIntensityProfiling
 
 ## Licence
 
-BSD 3-Clause. See `LICENSE`.
+BSD 3-Clause. See `LICENSE`; attribution is in `NOTICE`. Both ship inside the
+jar under `META-INF/`.
 ## Parallel execution
 
 Per-object profiles and independent `(raw channel, object)` texture measurements use deterministic
