@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+message: "If you use this plugin, please cite it as below."
+type: software
+title: "Object Intensity Profiling"
+abstract: >-
+  ImageJ/Fiji plugin for measuring where raw signal lies inside each object in a
+  label image. Provides fixed-length radial, image-axis, principal-axis, angular
+  and shell profiles, per-object cross-channel correlation, and optional texture
+  measurements. The label image supplies object geometry only.
+authors:
+  - given-names: Jamie
+    family-names: Malcolm
+    orcid: "https://orcid.org/0009-0008-3862-2776"
+    affiliation: "UK Dementia Research Institute at Imperial College London"
+    email: jamiemalcolm12@gmail.com
+repository-code: "https://github.com/Jay2owe/ObjectIntensityProfiling"
+url: "https://github.com/Jay2owe/ObjectIntensityProfiling"
+license: BSD-3-Clause
+version: "0.2.0"
+date-released: "2026-08-20"
+keywords:
+  - imagej
+  - fiji
+  - image-analysis
+  - microscopy
+  - intensity-profiling
