@@ -44,10 +44,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Progress no longer jumps backwards while fixed GLCM ranges are scanned for several
   channels, and batch range-scan progress no longer counts channels with manual ranges.
 
+- A macro that passes a bad option (or is cancelled) now stops with a one-line message.
+  Previously, in headless Fiji, ImageJ printed a Java stack trace and the macro carried on with
+  its next line.
+
 ### Documented
 - For single-slice images the `MarginalZ` and `PCThird` curves hold one filled middle bin.
   They are still written so 2D and 3D tables share their rows; outputs are unchanged.
 - Behaviour for one-voxel, one-line and single-object inputs (blank values, class 1).
+
+### Testing
+- `src/test/fiji/run-smoke.sh` runs the packaged plugin headless inside a disposable Fiji;
+  `SmokeParityTest` checks that Fiji and the unit-test build give identical 2D tables.
 
 ### Deferred
 - True 3D Zernike moments: this release measures each object's maximum-intensity projection.

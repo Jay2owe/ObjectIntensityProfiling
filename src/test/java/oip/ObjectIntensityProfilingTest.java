@@ -103,6 +103,19 @@ public class ObjectIntensityProfilingTest {
     }
 
     @Test
+    public void expectedErrorsStopAMacroCleanlyInsteadOfPrintingAStackTrace() {
+        // Found by the Fiji smoke test: rethrowing inside a headless macro printed a stack trace
+        // and the macro carried on with its next line.
+        IllegalArgumentException error = new IllegalArgumentException("Unknown macro flag: x");
+        assertEquals(ij.Macro.MACRO_CANCELED,
+                Object_Intensity_Profiling.failure(error, true, true).getMessage());
+        assertEquals(ij.Macro.MACRO_CANCELED,
+                Object_Intensity_Profiling.failure(error, false, true).getMessage());
+        assertTrue(error == Object_Intensity_Profiling.failure(error, true, false));
+        assertTrue(Object_Intensity_Profiling.failure(error, false, false) == null);
+    }
+
+    @Test
     public void failureMessagesKeepTheWrappedCauseOnOneLine() {
         IllegalStateException error = new IllegalStateException(
                 "Could not save Object Intensity Profiling results.",

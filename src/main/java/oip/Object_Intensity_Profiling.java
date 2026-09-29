@@ -91,7 +91,10 @@ public final class Object_Intensity_Profiling implements PlugIn {
         } catch (ObjectIntensityProfiling.AnalysisCancelledException cancelled) {
             IJ.log(TITLE + ": " + cancelled.getMessage());
             IJ.showStatus(cancelled.getMessage());
-            if (headless) throw cancelled;
+            boolean inMacro = insideMacro();
+            RuntimeException failure = failure(cancelled, headless, inMacro);
+            if (inMacro) stopMacro();
+            if (failure != null) throw failure;
         } catch (IllegalArgumentException expected) {
             reportExpected(expected);
         } catch (IllegalStateException expected) {
@@ -105,8 +108,33 @@ public final class Object_Intensity_Profiling implements PlugIn {
 
     private void reportExpected(RuntimeException error) {
         IJ.log(TITLE + ": " + message(error));
-        if (headless) throw error;
-        IJ.error(TITLE, message(error));
+        if (!headless) IJ.error(TITLE, message(error));
+        boolean macro = insideMacro();
+        RuntimeException failure = failure(error, headless, macro);
+        if (macro) stopMacro();
+        if (failure != null) throw failure;
+    }
+
+    /**
+     * What to throw after an expected error or a cancellation has been logged. Inside a macro,
+     * ImageJ prints a stack trace for any exception and then carries on with the next macro
+     * line, so the macro is stopped with ImageJ's "Macro canceled" signal, which it treats as a
+     * clean stop. A headless Java caller gets the original exception; an interactive run that
+     * is not a macro just returns.
+     */
+    static RuntimeException failure(RuntimeException error, boolean headless,
+                                    boolean insideMacro) {
+        if (insideMacro) return new RuntimeException(Macro.MACRO_CANCELED);
+        return headless ? error : null;
+    }
+
+    /** Mark the running macro as finished so it does not carry on after the plugin returns. */
+    private static void stopMacro() {
+        ij.macro.Interpreter.abort();
+    }
+
+    private static boolean insideMacro() {
+        return ij.macro.Interpreter.getInstance() != null;
     }
 
     private void runInteractive() {

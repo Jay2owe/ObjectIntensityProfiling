@@ -452,6 +452,28 @@ measurements read raw stored pixel values, ignoring any ImageJ density
 calibration set through *Image > Adjust > Calibrate...*; this matters only for
 signed 16-bit or explicitly calibrated images.
 
+## Testing
+
+`sh ./mvnw -B clean verify` runs the unit tests, the golden-output digests
+and a packaging check of the shaded jar.
+
+A smoke test runs the packaged plugin inside a real Fiji. Point `FIJI_HOME` at
+a disposable copy of Fiji, because the script replaces any
+`Object_Intensity_Profiling` jar in its `plugins/` folder:
+
+```bash
+FIJI_HOME=/path/to/Fiji-copy bash src/test/fiji/run-smoke.sh
+```
+
+It builds the jar, runs `src/test/fiji/oip-smoke.ijm` headless (menu
+registration, 2D and 3D single-image runs, a two-sample batch), checks that a
+bad option stops the macro with a one-line message and no stack trace, and
+prints `SMOKE OK`. On Windows the Fiji launcher's console output cannot be
+captured, so the script asks Fiji's Jaunch configurator for the Java command
+and starts Fiji's bundled Java directly. To compare the Fiji run's 2D tables
+with the same run under JUnit, keep the work folder (`SMOKE_DIR=...`) and run
+`sh ./mvnw -B -q test -Dtest=SmokeParityTest -Doip.smoke.dir=<SMOKE_DIR>`.
+
 ## Citation
 
 Malcolm, J. (2026). *Object Intensity Profiling* (v0.2.0) [Software].
