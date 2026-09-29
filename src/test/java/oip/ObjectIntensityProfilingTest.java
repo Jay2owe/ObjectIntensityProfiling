@@ -414,6 +414,38 @@ public class ObjectIntensityProfilingTest {
         assertTrue(result.getClassMaps().isEmpty());
     }
 
+    /**
+     * Review of 0.3.0: with Zernike off, a degree of 25 ran but was recorded as
+     * {@code no_zernike zernike_degree=25}, which the parser rejects, so the line never
+     * replayed. The dialog now applies the parser's ranges; edge values it accepts replay.
+     */
+    @Test
+    public void dialogRangesMatchTheParserSoRecordedLinesReplay() {
+        try {
+            Object_Intensity_Profiling.exactIntegerInRange("Zernike degree", 25, 1,
+                    oip.texture.ZernikeMoments.MAX_DEGREE);
+            fail("degree 25 accepted");
+        } catch (IllegalArgumentException expected) {
+            assertTrue(expected.getMessage().contains("between 1 and 20"));
+        }
+        try {
+            Object_Intensity_Profiling.exactIntegerInRange("Profile classes (k)", 0, 1, 255);
+            fail("k = 0 accepted");
+        } catch (IllegalArgumentException expected) {
+            assertTrue(expected.getMessage().startsWith("Profile classes (k)"));
+        }
+        OipMacroOptions options = new OipMacroOptions();
+        options.labelsTitle = "Labels";
+        options.rawTitles[0] = "Raw";
+        options.config.doZernike = false;
+        options.config.zernikeDegree = oip.texture.ZernikeMoments.MAX_DEGREE;
+        options.config.doProfileClasses = false;
+        options.config.profileClasses = 255;
+        OipMacroOptions parsed = OipMacroOptionsParser.parse(options.toMacroOptions());
+        assertEquals(oip.texture.ZernikeMoments.MAX_DEGREE, parsed.config.zernikeDegree);
+        assertEquals(255, parsed.config.profileClasses);
+    }
+
     /** Back in the batch preview redisplays every typed value exactly, never rounded. */
     @Test
     public void batchSettingsRedisplayTypedValuesExactly() {

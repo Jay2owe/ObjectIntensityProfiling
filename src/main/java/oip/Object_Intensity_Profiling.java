@@ -468,7 +468,10 @@ public final class Object_Intensity_Profiling implements PlugIn {
         config.doProfileClasses = dialog.getNextBoolean();
         config.profileClassFamily =
                 ProfileShapeClassifier.Family.values()[dialog.getNextChoiceIndex()];
-        config.profileClasses = exactInteger("Profile classes (k)", dialog.getNextNumber());
+        // Range-checked even when the feature is off: the recorded line always carries the
+        // value, and the macro parser rejects it out of range, so the line would not replay.
+        config.profileClasses = exactIntegerInRange("Profile classes (k)",
+                dialog.getNextNumber(), 1, 255);
         config.doGlcm = dialog.getNextBoolean();
         config.glcmLevels = exactInteger("GLCM grey levels", dialog.getNextNumber());
         config.glcmDistance = exactInteger("GLCM distance", dialog.getNextNumber());
@@ -477,7 +480,8 @@ public final class Object_Intensity_Profiling implements PlugIn {
         config.minimumTextureVoxels = exactInteger(
                 "Minimum texture voxels", dialog.getNextNumber());
         config.doZernike = dialog.getNextBoolean();
-        config.zernikeDegree = exactInteger("Zernike degree", dialog.getNextNumber());
+        config.zernikeDegree = exactIntegerInRange("Zernike degree", dialog.getNextNumber(),
+                1, ZernikeMoments.MAX_DEGREE);
         OipConfigOptions.validate(config);
     }
 
@@ -811,6 +815,16 @@ public final class Object_Intensity_Profiling implements PlugIn {
             throw new IllegalArgumentException(name + " must be an exact whole number.");
         }
         return (int) value;
+    }
+
+    /** A whole number within the range the macro parser accepts for the same option. */
+    static int exactIntegerInRange(String name, double value, int minimum, int maximum) {
+        int parsed = exactInteger(name, value);
+        if (parsed < minimum || parsed > maximum) {
+            throw new IllegalArgumentException(name + " must be between " + minimum + " and "
+                    + maximum + "; got: " + parsed);
+        }
+        return parsed;
     }
 
     private static OipConfig.IntensityNorm intensityNorm(int index) {
