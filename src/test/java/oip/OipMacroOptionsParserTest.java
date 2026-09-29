@@ -150,4 +150,59 @@ public class OipMacroOptionsParserTest {
         assertEquals(options.rawTitles[0], parsed.rawTitles[0]);
         assertEquals(options.rawNames[0], parsed.rawNames[0]);
     }
+
+    @Test
+    public void repeatedKeyIsRejectedInsteadOfLastOneWins() {
+        assertRejected("labels=[Objects] raw1=[A] raw1=[B]", "given more than once: raw1");
+    }
+
+    @Test
+    public void conflictingFlagsAreRejected() {
+        assertRejected("labels=[Objects] raw1=[A] glcm no_glcm", "glcm and no_glcm");
+        assertRejected("labels=[Objects] raw1=[A] mask box", "mask and box");
+    }
+
+    @Test
+    public void aliasesCountAsOneOption() {
+        assertRejected("labels=[Objects] raw1=[A] auto_save output=[C:/a] save_dir=[C:/b]",
+                "output and save_dir");
+        assertRejected("labels=[Objects] raw1=[A] auto_save autosave output=[C:/a]",
+                "auto_save and autosave");
+    }
+
+    @Test
+    public void singleImageAcceptsSaveDirAsOutputAlias() {
+        OipMacroOptions parsed = OipMacroOptionsParser.parse(
+                "labels=[Objects] raw1=[A] autosave save_dir=[C:/results]");
+        assertTrue(parsed.autoSave);
+        assertEquals("C:/results", parsed.outputDirectory);
+    }
+
+    @Test
+    public void batchOnlyOptionsInSingleImageModeNameTheBatchSwitch() {
+        assertRejected("labels=[Objects] raw1=[A] labels_folder=[C:/x]",
+                "labels_folder is a folder-batch option");
+        assertRejected("labels=[Objects] raw1=[A] raw1_regex=[x]",
+                "raw1_regex is a folder-batch option");
+        assertRejected("labels=[Objects] raw1=[A] no_recursive",
+                "no_recursive is a folder-batch option");
+    }
+
+    @Test
+    public void badNumbersNameTheOptionAndValue() {
+        assertRejected("labels=[Objects] raw1=[A] radial_bins=ten",
+                "radial_bins must be a whole number; got: ten");
+        assertRejected("labels=[Objects] raw1=[A] padding=wide",
+                "padding must be numeric; got: wide");
+    }
+
+    static void assertRejected(String macro, String expectedFragment) {
+        try {
+            if (OipBatchMacroOptionsParser.isBatch(macro)) OipBatchMacroOptionsParser.parse(macro);
+            else OipMacroOptionsParser.parse(macro);
+            org.junit.Assert.fail("expected rejection of: " + macro);
+        } catch (IllegalArgumentException expected) {
+            assertTrue(expected.getMessage(), expected.getMessage().contains(expectedFragment));
+        }
+    }
 }

@@ -114,6 +114,74 @@ public class OipBatchRunnerTest {
     }
 
     /**
+     * The interactive path previews the pairing and then runs it. Preflight used to open every
+     * input twice (once for the preview, once more for the run); the prepared batch is reused.
+     */
+    @Test
+    public void previewThenRunPreflightsEachInputOnce() throws Exception {
+        File labels = temporary.newFolder("once-labels");
+        File raw = temporary.newFolder("once-raw");
+        File output = temporary.newFolder("once-output");
+        save(new File(labels, "A_labels.tif"), labels());
+        save(new File(labels, "B_labels.tif"), labels());
+        save(new File(raw, "A_raw.tif"), checker(10));
+        save(new File(raw, "B_raw.tif"), checker(20));
+        final java.util.List<String> progress = new java.util.ArrayList<String>();
+        OipBatchParameters parameters = OipBatchParameters.builder(
+                        labels, "(.*)_labels\\.tif", output)
+                .addRawChannel("Signal", raw, "(.*)_raw\\.tif")
+                .saveFigures(false)
+                .saveClassMaps(false)
+                .progressListener(new OipParameters.ProgressListener() {
+                    @Override
+                    public void onProgress(double fraction, String message) {
+                        progress.add(message);
+                    }
+                })
+                .build();
+
+        final java.util.Map<String, Integer> opens = new java.util.TreeMap<String, Integer>();
+        OipBatchRunner.opener = new OipBatchRunner.ImageOpener() {
+            @Override
+            public ImagePlus open(File file) {
+                Integer count = opens.get(file.getName());
+                opens.put(file.getName(), count == null ? 1 : count + 1);
+                return OipBatchRunner.DEFAULT_OPENER.open(file);
+            }
+        };
+        try {
+            OipBatchRunner.PreparedBatch prepared = OipBatchRunner.prepare(parameters);
+            assertEquals("A: A_labels.tif | Signal=A_raw.tif\nB: B_labels.tif | Signal=B_raw.tif",
+                    prepared.preview());
+            for (Integer count : opens.values()) assertEquals(Integer.valueOf(1), count);
+            assertEquals(4, opens.size());
+
+            OipBatchRunner.run(parameters, prepared);
+            // One preflight read plus one analysis read per input, no second preflight.
+            for (Integer count : opens.values()) assertEquals(Integer.valueOf(2), count);
+        } finally {
+            OipBatchRunner.opener = OipBatchRunner.DEFAULT_OPENER;
+        }
+        assertTrue(progress.toString(), progress.contains("Checking sample 1 of 2"));
+        assertTrue(progress.toString(), progress.contains("Checking sample 2 of 2"));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void preparedBatchIsTiedToItsParameters() throws Exception {
+        File labels = temporary.newFolder("tie-labels");
+        File raw = temporary.newFolder("tie-raw");
+        File output = temporary.newFolder("tie-output");
+        save(new File(labels, "A_labels.tif"), labels());
+        save(new File(raw, "A_raw.tif"), checker(10));
+        OipBatchParameters.Builder builder = OipBatchParameters.builder(
+                        labels, "(.*)_labels\\.tif", output)
+                .addRawChannel("Signal", raw, "(.*)_raw\\.tif")
+                .saveFigures(false);
+        OipBatchRunner.PreparedBatch prepared = OipBatchRunner.prepare(builder.build());
+        OipBatchRunner.run(builder.build(), prepared);
+    }
+
+    /**
      * The single-image writer refuses to publish over a figure the manifest does not list. Batch
      * promotion has to refuse too: it moves with ATOMIC_MOVE, which replaces an existing regular
      * file, and it backs up only manifested names — so an unmanifested collision was destroyed.

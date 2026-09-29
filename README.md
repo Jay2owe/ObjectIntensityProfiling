@@ -147,7 +147,16 @@ headless run. Manual GLCM limits use paired options such as
 
 `auto_save`, `output` and `hide_display` also accept the aliases `autosave`,
 `save_dir` and `no_display`. Any option outside this table is rejected rather
-than ignored.
+than ignored, and so is an option given twice (`raw1=` twice) or given with
+its opposite (`glcm no_glcm`, `mask box`, `output=... save_dir=...`), rather
+than letting the last one win.
+
+When a macro fails (unknown option, missing image, wrong dimensions), the
+reason is written to the Log window as one line and shown in an error
+message. In a headless run (`--headless`) the same one-line reason is thrown
+so the run exits with an error, and results are saved but never displayed. Two
+open images with the same title are rejected, because the recorded macro could
+not tell them apart: rename one first.
 
 Interactive count and bin fields require exact whole numbers; fractional
 entries are rejected rather than silently truncated.
@@ -178,7 +187,15 @@ Every label and raw channel must resolve to the same set of sample keys;
 missing labels, missing raws, and orphan raw files are rejected.
 The only batch-only flag is `recursive` / `no_recursive`. All profile, texture, threshold,
 bin, padding, and `quant_minN` / `quant_maxN` options in the table above also
-apply to batch mode. Automatic quantisation limits span every matched image
+apply to batch mode, and are parsed by the same code in both modes.
+
+| Option | Single image | Folder batch |
+|---|---|---|
+| `labels`, `labels_path`, `rawN`, `rawN_path` | inputs | rejected; use `labels_folder`, `labels_regex`, `rawN_name`, `rawN_folder`, `rawN_regex` |
+| `labels_folder`, `labels_regex`, `rawN_folder`, `rawN_regex`, `recursive` | rejected; start the options with `batch` | inputs |
+| `output` / `save_dir` | output folder, used with `auto_save` | required output folder |
+| `auto_save` / `autosave` | write the output tree | accepted and ignored: a batch always saves |
+| `source_name` | name for the `Source` column | rejected: batch sources are always `Labels`, and each sample is named by capture group 1 of `labels_regex` | Automatic quantisation limits span every matched image
 in that channel; a complete manual min/max pair replaces that scan only for
 its channel. Manual limits are rejected when their numbered raw slot is not
 configured.

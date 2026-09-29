@@ -32,8 +32,6 @@
  */
 package oip;
 
-import oip.profile.OipConfig;
-
 import java.util.List;
 import java.util.Locale;
 
@@ -52,39 +50,32 @@ final class OipBatchMacroOptionsParser {
         if (tokens.isEmpty() || !"batch".equalsIgnoreCase(tokens.get(0))) {
             throw new IllegalArgumentException("Batch macro options must start with batch.");
         }
-        OipBatchMacroOptions options = new OipBatchMacroOptions();
-        for (int i = 1; i < tokens.size(); i++) {
-            String token = tokens.get(i);
-            int equals = token.indexOf('=');
-            if (equals < 0) applyFlag(options, token.toLowerCase(Locale.ROOT));
-            else applyValue(options, token.substring(0, equals).toLowerCase(Locale.ROOT),
-                    OipMacroOptionsParser.decode(token.substring(equals + 1)));
-        }
+        final OipBatchMacroOptions options = new OipBatchMacroOptions();
+        OipMacroOptionsParser.forEachOption(tokens, 1, new OipMacroOptionsParser.OptionSink() {
+            @Override
+            public void flag(String flag) {
+                applyFlag(options, flag);
+            }
+
+            @Override
+            public void value(String key, String value) {
+                applyValue(options, key, value);
+            }
+        });
         validate(options);
         return options;
     }
 
     private static void applyValue(OipBatchMacroOptions o, String key, String value) {
+        if (OipConfigOptions.applyValue(o.config, key, value)) return;
         if ("labels_folder".equals(key)) o.labelFolder = value;
         else if ("labels_regex".equals(key)) o.labelRegex = value;
         else if ("reference".equals(key)) o.referenceChannel = value;
-        else if ("output".equals(key)) o.outputDirectory = value;
-        else if ("intensity_norm".equals(key)) {
-            o.config.intensityNorm = OipMacroOptionsParser.intensityNorm(value);
-        }
-        else if ("radial_bins".equals(key)) o.config.radialBins = integer(key, value);
-        else if ("curve_bins".equals(key)) o.config.resampleN = integer(key, value);
-        else if ("angular_bins".equals(key)) o.config.angularBins = integer(key, value);
-        else if ("shells".equals(key)) o.config.shells = integer(key, value);
-        else if ("padding".equals(key)) o.config.boxPadPct = number(key, value);
-        else if ("ring_threshold".equals(key)) o.config.ringThresholdPct = number(key, value);
-        else if ("reference_threshold".equals(key)) o.config.referenceThreshold = number(key, value);
-        else if ("partner_threshold".equals(key)) o.config.partnerThreshold = number(key, value);
-        else if ("glcm_levels".equals(key)) o.config.glcmLevels = integer(key, value);
-        else if ("glcm_distance".equals(key)) o.config.glcmDistance = integer(key, value);
-        else if ("texture_k".equals(key)) o.config.textureClasses = integer(key, value);
-        else if ("minimum_texture_voxels".equals(key)) {
-            o.config.minimumTextureVoxels = integer(key, value);
+        // save_dir is accepted as an alias for output, as in single-image mode.
+        else if ("output".equals(key) || "save_dir".equals(key)) o.outputDirectory = value;
+        else if ("source_name".equals(key)) {
+            throw new IllegalArgumentException("source_name is not used in batch mode: "
+                    + "every sample is named by capture group 1 of labels_regex.");
         } else {
             int slot = OipMacroOptionsParser.slot(key, "raw", "_name");
             if (slot >= 0) o.rawNames[slot] = clean(value);
@@ -96,37 +87,33 @@ final class OipBatchMacroOptionsParser {
                 o.quantMin[slot] = number(key, value);
             } else if ((slot = OipMacroOptionsParser.slot(key, "quant_max", "")) >= 0) {
                 o.quantMax[slot] = number(key, value);
+            } else if (isSingleImageKey(key)) {
+                throw new IllegalArgumentException(key + " is a single-image option; batch mode "
+                        + "uses labels_folder, labels_regex and rawN_name/rawN_folder/rawN_regex.");
             } else throw new IllegalArgumentException("Unknown batch macro option: " + key);
         }
     }
 
     private static void applyFlag(OipBatchMacroOptions o, String flag) {
+        if (OipConfigOptions.applyFlag(o.config, flag)) return;
         if ("recursive".equals(flag)) o.recursive = true;
         else if ("no_recursive".equals(flag)) o.recursive = false;
-        else if ("radial".equals(flag)) o.config.doRadial = true;
-        else if ("no_radial".equals(flag)) o.config.doRadial = false;
-        else if ("marginal".equals(flag)) o.config.doMarginal = true;
-        else if ("no_marginal".equals(flag)) o.config.doMarginal = false;
-        else if ("principal".equals(flag)) o.config.doPrincipalAxis = true;
-        else if ("no_principal".equals(flag)) o.config.doPrincipalAxis = false;
-        else if ("angular".equals(flag)) o.config.doAngular = true;
-        else if ("no_angular".equals(flag)) o.config.doAngular = false;
-        else if ("shell".equals(flag)) o.config.doShell = true;
-        else if ("no_shell".equals(flag)) o.config.doShell = false;
-        else if ("correlation".equals(flag)) o.config.doWithinBox = true;
-        else if ("no_correlation".equals(flag)) o.config.doWithinBox = false;
-        else if ("mask".equals(flag)) o.config.region = OipConfig.Region.OBJECT_VOXELS;
-        else if ("box".equals(flag)) o.config.region = OipConfig.Region.WHOLE_BOX;
-        else if ("glcm".equals(flag)) o.config.doGlcm = true;
-        else if ("no_glcm".equals(flag)) o.config.doGlcm = false;
-        else if ("texture_classes".equals(flag)) o.config.doTextureClasses = true;
-        else if ("no_texture_classes".equals(flag)) o.config.doTextureClasses = false;
         else if ("save_figures".equals(flag)) o.saveFigures = true;
         else if ("no_figures".equals(flag)) o.saveFigures = false;
         else if ("save_maps".equals(flag)) o.saveClassMaps = true;
         else if ("no_maps".equals(flag)) o.saveClassMaps = false;
         else if ("hide_display".equals(flag) || "no_display".equals(flag)) o.hideDisplay = true;
-        else throw new IllegalArgumentException("Unknown batch macro flag: " + flag);
+        // Batch results are always saved to output, so auto_save is accepted and changes nothing.
+        else if ("auto_save".equals(flag) || "autosave".equals(flag)) return;
+        else if ("batch".equals(flag)) {
+            throw new IllegalArgumentException("batch must be the first macro option.");
+        } else throw new IllegalArgumentException("Unknown batch macro flag: " + flag);
+    }
+
+    private static boolean isSingleImageKey(String key) {
+        return "labels".equals(key) || "labels_path".equals(key)
+                || OipMacroOptionsParser.slot(key, "raw", "") >= 0
+                || OipMacroOptionsParser.slot(key, "raw", "_path") >= 0;
     }
 
     private static void validate(OipBatchMacroOptions o) {
@@ -161,10 +148,6 @@ final class OipBatchMacroOptionsParser {
             throw new IllegalArgumentException(
                     "reference is not one of the configured raw channel names.");
         }
-    }
-
-    private static int integer(String key, String value) {
-        return OipMacroOptionsParser.integer(key, value);
     }
 
     private static double number(String key, String value) {

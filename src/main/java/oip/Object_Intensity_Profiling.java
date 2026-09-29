@@ -47,31 +47,63 @@ import oip.profile.OipConfig;
 import oip.profile.ProfileAggregator;
 import oip.texture.QuantizationRange;
 
+import java.awt.GraphicsEnvironment;
 import java.io.File;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * ImageJ menu and macro entry point.
  */
 public final class Object_Intensity_Profiling implements PlugIn {
 
+    static final String TITLE = "Object Intensity Profiling";
+    /** Longest batch pairing preview shown in the confirmation dialog. */
+    static final int PREVIEW_LIMIT = 3500;
+
+    /** True while running without a display; results are then saved, never shown. */
+    private boolean headless;
+
     @Override
     public void run(String argument) {
-        String macro = Macro.getOptions();
+        execute(Macro.getOptions(), GraphicsEnvironment.isHeadless());
+    }
+
+    /**
+     * Run with an explicit headless flag (the seam tests use, since JUnit is not headless).
+     * Expected failures (bad options, bad inputs) become a one-line log entry plus an error
+     * dialog, or are rethrown when headless so a scripted run exits non-zero; only unexpected
+     * programming errors get ImageJ's exception window.
+     */
+    void execute(String macro, boolean headless) {
+        this.headless = headless;
         try {
-            if (OipMacroOptions.hasText(macro)) {
-                runMacroOptions(macro);
-            }
-            else runInteractive();
+            if (OipMacroOptions.hasText(macro) || headless) {
+                runMacroOptions(macro == null ? "" : macro);
+            } else runInteractive();
         } catch (ObjectIntensityProfiling.AnalysisCancelledException cancelled) {
+            IJ.log(TITLE + ": " + cancelled.getMessage());
             IJ.showStatus(cancelled.getMessage());
-        } catch (RuntimeException error) {
-            IJ.handleException(error);
-            IJ.error("Object Intensity Profiling", message(error));
+            if (headless) throw cancelled;
+        } catch (IllegalArgumentException expected) {
+            reportExpected(expected);
+        } catch (IllegalStateException expected) {
+            reportExpected(expected);
+        } catch (RuntimeException unexpected) {
+            IJ.log(TITLE + ": " + message(unexpected));
+            if (headless) throw unexpected;
+            IJ.handleException(unexpected);
         }
+    }
+
+    private void reportExpected(RuntimeException error) {
+        IJ.log(TITLE + ": " + message(error));
+        if (headless) throw error;
+        IJ.error(TITLE, message(error));
     }
 
     private void runInteractive() {
@@ -92,6 +124,7 @@ public final class Object_Intensity_Profiling implements PlugIn {
         }
         String[] titles = new String[ids.length];
         for (int i = 0; i < ids.length; i++) titles[i] = WindowManager.getImage(ids[i]).getTitle();
+        requireUniqueTitles(titles);
         String[] optional = new String[titles.length + 1];
         optional[0] = "<none>";
         System.arraycopy(titles, 0, optional, 1, titles.length);
@@ -212,10 +245,7 @@ public final class Object_Intensity_Profiling implements PlugIn {
             options.outputDirectory = chooser.getDirectory();
             if (!OipMacroOptions.hasText(options.outputDirectory)) return;
         }
-        if (recording) {
-            Recorder.recordString("run(\"Object Intensity Profiling\", \""
-                    + recorded(options.toMacroOptions()) + "\");\n");
-        }
+        if (recording) record(options.toMacroOptions());
         runOptions(options);
     }
 
@@ -331,19 +361,44 @@ public final class Object_Intensity_Profiling implements PlugIn {
         options.referenceChannel = options.rawNames[referenceSlot];
 
         OipBatchParameters parameters = batchParameters(options);
-        String preview = OipBatchRunner.preview(parameters);
+        IJ.resetEscape();
+        OipBatchRunner.PreparedBatch prepared = OipBatchRunner.prepare(parameters);
         GenericDialog confirmation = new GenericDialog("Confirm batch pairing");
-        confirmation.addMessage(preview.length() > 3500
-                ? preview.substring(0, 3500) + "\n..." : preview);
+        confirmation.addMessage(previewText(prepared.previewLines(), PREVIEW_LIMIT));
         confirmation.enableYesNoCancel("Run batch", "Back");
         showWithoutRecording(confirmation);
         if (confirmation.wasCanceled() || !confirmation.wasOKed()) return;
 
-        if (recording) {
-            Recorder.recordString("run(\"Object Intensity Profiling\", \""
-                    + recorded(options.toMacroOptions()) + "\");\n");
+        if (recording) record(options.toMacroOptions());
+        runBatch(parameters, prepared, options.hideDisplay);
+    }
+
+    /**
+     * Join preview lines up to {@code limit} characters, saying how many samples were left out
+     * rather than silently cutting a line.
+     */
+    static String previewText(List<String> lines, int limit) {
+        StringBuilder text = new StringBuilder();
+        int shown = 0;
+        for (String line : lines) {
+            if (shown > 0 && text.length() + 1 + line.length() > limit) break;
+            if (shown > 0) text.append('\n');
+            text.append(line);
+            shown++;
         }
-        runBatch(parameters, options.hideDisplay);
+        int omitted = lines.size() - shown;
+        if (omitted > 0) {
+            text.append("\n... and ").append(omitted).append(omitted == 1
+                    ? " more sample (" : " more samples (").append(lines.size())
+                    .append(" in total)");
+        }
+        return text.toString();
+    }
+
+    /** Record exactly one runnable line, replacing ImageJ's bare command line. */
+    private static void record(String options) {
+        Recorder.disableCommandRecording();
+        Recorder.recordString("run(\"" + TITLE + "\", \"" + recorded(options) + "\");\n");
     }
 
     OipBatchParameters batchParameters(final OipBatchMacroOptions options) {
@@ -387,13 +442,18 @@ public final class Object_Intensity_Profiling implements PlugIn {
     }
 
     private void runBatchOptions(OipBatchMacroOptions options) {
-        runBatch(batchParameters(options), options.hideDisplay);
+        IJ.resetEscape();
+        OipBatchParameters parameters = batchParameters(options);
+        runBatch(parameters, OipBatchRunner.prepare(parameters), options.hideDisplay);
     }
 
-    private void runBatch(OipBatchParameters parameters, boolean hideDisplay) {
-        IJ.resetEscape();
-        OipBatchResult result = OipBatchRunner.run(parameters);
-        if (!hideDisplay) {
+    private void runBatch(OipBatchParameters parameters,
+                          OipBatchRunner.PreparedBatch prepared, boolean hideDisplay) {
+        OipBatchResult result = OipBatchRunner.run(parameters, prepared);
+        IJ.log(TITLE + ": batch complete; " + result.getSampleCount() + " samples, "
+                + result.getObjectCount() + " objects; output "
+                + result.getOutputDirectory().getAbsolutePath());
+        if (!hideDisplay && !headless) {
             IJ.showMessage("Object Intensity Profiling",
                     "Batch complete.\nSamples: " + result.getSampleCount()
                             + "\nObjects: " + result.getObjectCount()
@@ -463,7 +523,7 @@ public final class Object_Intensity_Profiling implements PlugIn {
             if (options.autoSave) builder.autoSave(new File(options.outputDirectory));
             IJ.resetEscape();
             OipResult result = ObjectIntensityProfiling.run(builder.build());
-            if (!options.hideDisplay) show(result);
+            if (!options.hideDisplay && !headless) show(result);
             IJ.showStatus("Object Intensity Profiling complete: "
                     + result.getProfiles().size() + " objects");
         } finally {
@@ -495,21 +555,59 @@ public final class Object_Intensity_Profiling implements PlugIn {
 
     private static ImagePlus resolve(String title, String path, String role,
                                      List<ImagePlus> opened) {
-        ImagePlus image;
         if (OipMacroOptions.hasText(path)) {
-            image = IJ.openImage(path);
-            if (image != null) opened.add(image);
-        } else {
-            image = WindowManager.getImage(title);
+            ImagePlus image = IJ.openImage(path);
+            if (image == null) {
+                throw new IllegalArgumentException("Could not open " + role + " image: " + path);
+            }
+            opened.add(image);
+            return image;
         }
-        if (image == null) {
-            throw new IllegalArgumentException("Could not resolve " + role + " image.");
-        }
-        return image;
+        return openImageByTitle(title, role);
     }
 
-    private static String message(Throwable error) {
-        return error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage();
+    /** Find the one open image with this exact title; ambiguous titles are an error. */
+    static ImagePlus openImageByTitle(String title, String role) {
+        int[] ids = WindowManager.getIDList();
+        ImagePlus found = null;
+        if (ids != null) {
+            for (int id : ids) {
+                ImagePlus candidate = WindowManager.getImage(id);
+                if (candidate == null || !candidate.getTitle().equals(title)) continue;
+                if (found != null) throw duplicateTitle(title);
+                found = candidate;
+            }
+        }
+        if (found == null) {
+            throw new IllegalArgumentException("No open image is titled \"" + title
+                    + "\" (" + role + " image).");
+        }
+        return found;
+    }
+
+    static void requireUniqueTitles(String[] titles) {
+        Set<String> seen = new HashSet<String>();
+        for (String title : titles) {
+            if (!seen.add(title)) throw duplicateTitle(title);
+        }
+    }
+
+    private static IllegalArgumentException duplicateTitle(String title) {
+        return new IllegalArgumentException("More than one open image is titled \"" + title
+                + "\"; rename one (Image > Rename...) so the right image is used.");
+    }
+
+    /** One-line message; wrapped causes (such as the I/O error behind a failed save) are kept. */
+    static String message(Throwable error) {
+        String message = error.getMessage() == null
+                ? error.getClass().getSimpleName() : error.getMessage();
+        Throwable cause = error.getCause();
+        if (cause != null && cause != error) {
+            String detail = cause.getMessage() == null
+                    ? cause.getClass().getSimpleName() : cause.getMessage();
+            if (!message.contains(detail)) message = message + " (" + detail + ")";
+        }
+        return message.replace('\n', ' ').replace('\r', ' ');
     }
 
     private static Double optionalNumber(String label, String text) {

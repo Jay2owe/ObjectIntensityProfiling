@@ -43,16 +43,114 @@ import oip.texture.ObjectPatchBuilder;
 import oip.texture.ObjectTextureAnalyzer;
 import oip.texture.ObjectTextureResult;
 import oip.texture.QuantizationRange;
+import ij.io.FileSaver;
+import ij.macro.Interpreter;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
+import java.io.File;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class ObjectIntensityProfilingTest {
+
+    @Rule
+    public TemporaryFolder temporary = new TemporaryFolder();
+
+    /** Headless runs must fail with the parser's one-line message, never a dialog. */
+    @Test
+    public void headlessInvalidOptionThrowsTheOneLineMessage() {
+        try {
+            new Object_Intensity_Profiling().execute("labels=[L] raw1=[R] mystery_flag", true);
+            fail("expected an IllegalArgumentException");
+        } catch (IllegalArgumentException expected) {
+            assertEquals("Unknown macro flag: mystery_flag", expected.getMessage());
+        }
+    }
+
+    /** Headless with no options must not reach GenericDialog (HeadlessException). */
+    @Test
+    public void headlessWithoutOptionsAsksForLabelsInsteadOfOpeningADialog() {
+        try {
+            new Object_Intensity_Profiling().execute(null, true);
+            fail("expected an IllegalArgumentException");
+        } catch (IllegalArgumentException expected) {
+            assertEquals("labels or labels_path is required.", expected.getMessage());
+        }
+    }
+
+    @Test
+    public void headlessPathRunSavesWithoutDisplayingResults() throws Exception {
+        File labels = temporary.newFile("labels.tif");
+        File raw = temporary.newFile("raw.tif");
+        File output = temporary.newFolder("out");
+        assertTrue(new FileSaver(SyntheticImages.image("labels", 8, 8, 1, constant(1)))
+                .saveAsTiff(labels.getAbsolutePath()));
+        assertTrue(new FileSaver(SyntheticImages.image("raw", 8, 8, 1, constant(3)))
+                .saveAsTiff(raw.getAbsolutePath()));
+        new Object_Intensity_Profiling().execute("labels_path=[" + labels.getAbsolutePath()
+                + "] raw1_path=[" + raw.getAbsolutePath() + "] no_figures auto_save output=["
+                + output.getAbsolutePath() + "]", true);
+        assertTrue(new File(output, "Profiles/Object_Summaries.csv").isFile());
+    }
+
+    @Test
+    public void failureMessagesKeepTheWrappedCauseOnOneLine() {
+        IllegalStateException error = new IllegalStateException(
+                "Could not save Object Intensity Profiling results.",
+                new java.io.IOException("Disk full\nretry later"));
+        assertEquals("Could not save Object Intensity Profiling results. (Disk full retry later)",
+                Object_Intensity_Profiling.message(error));
+    }
+
+    @Test
+    public void twoOpenImagesWithTheSameTitleAreRejectedByName() {
+        ImagePlus first = SyntheticImages.image("Twin", 8, 8, 1, constant(1));
+        ImagePlus second = SyntheticImages.image("Twin", 8, 8, 1, constant(1));
+        boolean batchMode = Interpreter.batchMode;
+        Interpreter.batchMode = true;
+        Interpreter.addBatchModeImage(first);
+        Interpreter.addBatchModeImage(second);
+        try {
+            new Object_Intensity_Profiling().execute("labels=[Twin] raw1=[Twin]", true);
+            fail("expected an IllegalArgumentException");
+        } catch (IllegalArgumentException expected) {
+            assertTrue(expected.getMessage(),
+                    expected.getMessage().contains("More than one open image is titled \"Twin\""));
+        } finally {
+            Interpreter.removeBatchModeImage(first);
+            Interpreter.removeBatchModeImage(second);
+            Interpreter.batchMode = batchMode;
+        }
+    }
+
+    @Test
+    public void interactiveTitleListRejectsDuplicates() {
+        Object_Intensity_Profiling.requireUniqueTitles(new String[] {"a", "b"});
+        try {
+            Object_Intensity_Profiling.requireUniqueTitles(new String[] {"a", "b", "a"});
+            fail("expected an IllegalArgumentException");
+        } catch (IllegalArgumentException expected) {
+            assertTrue(expected.getMessage().contains("\"a\""));
+        }
+    }
+
+    @Test
+    public void batchPreviewSaysHowManySamplesWereOmitted() {
+        String text = Object_Intensity_Profiling.previewText(
+                Arrays.asList("A: a.tif", "B: b.tif", "C: c.tif", "D: d.tif"), 20);
+        assertEquals("A: a.tif\nB: b.tif\n... and 2 more samples (4 in total)", text);
+        assertFalse(Object_Intensity_Profiling.previewText(
+                Arrays.asList("A: a.tif"), 20).contains("more"));
+    }
 
     @Test(expected = IllegalArgumentException.class)
     public void interactiveIntegerSettingsRejectFractionalValues() {

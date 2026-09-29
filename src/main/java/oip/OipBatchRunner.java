@@ -74,20 +74,28 @@ public final class OipBatchRunner {
     }
 
     public static String preview(OipBatchParameters parameters) {
-        List<Pairing> pairings = pair(parameters);
-        StringBuilder preview = new StringBuilder();
-        for (Pairing pairing : pairings) {
-            if (preview.length() > 0) preview.append('\n');
-            preview.append(pairing.key).append(": ").append(pairing.label.getName());
-            for (Map.Entry<String, File> raw : pairing.raw.entrySet()) {
-                preview.append(" | ").append(raw.getKey()).append('=').append(raw.getValue().getName());
-            }
-        }
-        return preview.toString();
+        return prepare(parameters).preview();
+    }
+
+    /**
+     * Discover, pair and preflight every sample once. The returned plan can be shown to the user
+     * and then passed to {@link #run(OipBatchParameters, PreparedBatch)} so inputs are not
+     * re-opened for a second preflight.
+     */
+    static PreparedBatch prepare(OipBatchParameters parameters) {
+        return new PreparedBatch(parameters, pair(parameters));
     }
 
     public static OipBatchResult run(OipBatchParameters parameters) {
-        List<Pairing> pairings = pair(parameters);
+        return run(parameters, prepare(parameters));
+    }
+
+    static OipBatchResult run(OipBatchParameters parameters, PreparedBatch prepared) {
+        if (prepared == null || prepared.parameters != parameters) {
+            throw new IllegalArgumentException(
+                    "The prepared batch was built for different batch parameters.");
+        }
+        List<Pairing> pairings = prepared.pairings;
         progress(parameters, 0.01, "Scanning fixed quantisation ranges");
         Map<String, QuantizationRange> ranges = scanRanges(parameters, pairings);
         checkCancelled(parameters);
@@ -379,8 +387,11 @@ public final class OipBatchRunner {
 
     private static void preflight(
             OipBatchParameters parameters, List<Pairing> pairings) {
-        for (Pairing pairing : pairings) {
+        for (int index = 0; index < pairings.size(); index++) {
+            Pairing pairing = pairings.get(index);
             checkCancelled(parameters);
+            progress(parameters, 0.01 * index / Math.max(1, pairings.size()),
+                    "Checking sample " + (index + 1) + " of " + pairings.size());
             ImagePlus labels = open(pairing.label, "label");
             try {
                 if (labels.getStack() == null || labels.getStackSize() == 0
@@ -618,8 +629,22 @@ public final class OipBatchRunner {
         }
     }
 
+    /** Opens batch inputs; replaceable by tests that count reads. */
+    interface ImageOpener {
+        ImagePlus open(File file);
+    }
+
+    static final ImageOpener DEFAULT_OPENER = new ImageOpener() {
+        @Override
+        public ImagePlus open(File file) {
+            return IJ.openImage(file.getAbsolutePath());
+        }
+    };
+
+    static volatile ImageOpener opener = DEFAULT_OPENER;
+
     private static ImagePlus open(File file, String role) {
-        ImagePlus image = IJ.openImage(file.getAbsolutePath());
+        ImagePlus image = opener.open(file);
         if (image == null) throw new IllegalArgumentException(
                 "Could not open " + role + " image: " + file);
         return image;
@@ -1057,6 +1082,45 @@ public final class OipBatchRunner {
             this.key = key;
             this.label = label;
             this.raw = raw;
+        }
+    }
+
+    /** Discovered, paired and preflighted samples, ready to run once. */
+    static final class PreparedBatch {
+        final OipBatchParameters parameters;
+        final List<Pairing> pairings;
+
+        private PreparedBatch(OipBatchParameters parameters, List<Pairing> pairings) {
+            this.parameters = parameters;
+            this.pairings = Collections.unmodifiableList(new ArrayList<Pairing>(pairings));
+        }
+
+        int sampleCount() {
+            return pairings.size();
+        }
+
+        /** One line per sample: {@code key: label | channel=raw ...}. */
+        List<String> previewLines() {
+            List<String> lines = new ArrayList<String>();
+            for (Pairing pairing : pairings) {
+                StringBuilder line = new StringBuilder();
+                line.append(pairing.key).append(": ").append(pairing.label.getName());
+                for (Map.Entry<String, File> raw : pairing.raw.entrySet()) {
+                    line.append(" | ").append(raw.getKey()).append('=')
+                            .append(raw.getValue().getName());
+                }
+                lines.add(line.toString());
+            }
+            return lines;
+        }
+
+        String preview() {
+            StringBuilder preview = new StringBuilder();
+            for (String line : previewLines()) {
+                if (preview.length() > 0) preview.append('\n');
+                preview.append(line);
+            }
+            return preview.toString();
         }
     }
 

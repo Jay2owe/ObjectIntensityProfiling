@@ -32,11 +32,11 @@
  */
 package oip;
 
-import oip.profile.OipConfig;
-
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Strict parser for {@code run("Object Intensity Profiling", "...")} options.
@@ -47,40 +47,58 @@ final class OipMacroOptionsParser {
     }
 
     static OipMacroOptions parse(String text) {
-        OipMacroOptions options = new OipMacroOptions();
-        for (String token : tokenize(text == null ? "" : text)) {
-            int equals = token.indexOf('=');
-            if (equals < 0) applyFlag(options, token.toLowerCase(Locale.ROOT));
-            else applyValue(options,
-                    token.substring(0, equals).toLowerCase(Locale.ROOT),
-                    decode(token.substring(equals + 1)));
-        }
+        final OipMacroOptions options = new OipMacroOptions();
+        forEachOption(tokenize(text == null ? "" : text), 0, new OptionSink() {
+            @Override
+            public void flag(String flag) {
+                applyFlag(options, flag);
+            }
+
+            @Override
+            public void value(String key, String value) {
+                applyValue(options, key, value);
+            }
+        });
         validate(options);
         return options;
     }
 
+    /** Receives each option once it has passed the duplicate check. */
+    interface OptionSink {
+        void flag(String flag);
+
+        void value(String key, String value);
+    }
+
+    /**
+     * Split tokens into lower-case flags and {@code key=value} pairs, rejecting an option (or a
+     * conflicting member of its on/off family, such as {@code glcm no_glcm}) given twice.
+     */
+    static void forEachOption(List<String> tokens, int start, OptionSink sink) {
+        Map<String, String> seen = new HashMap<String, String>();
+        for (int i = start; i < tokens.size(); i++) {
+            String token = tokens.get(i);
+            int equals = token.indexOf('=');
+            String name = (equals < 0 ? token : token.substring(0, equals)).toLowerCase(Locale.ROOT);
+            String previous = seen.put(OipConfigOptions.family(name), name);
+            if (previous != null) {
+                throw new IllegalArgumentException(previous.equals(name)
+                        ? "Macro option given more than once: " + name
+                        : "Macro options conflict or repeat: " + previous + " and " + name);
+            }
+            if (equals < 0) sink.flag(name);
+            else sink.value(name, decode(token.substring(equals + 1)));
+        }
+    }
+
     private static void applyValue(OipMacroOptions o, String key, String value) {
+        if (OipConfigOptions.applyValue(o.config, key, value)) return;
         if ("labels".equals(key)) o.labelsTitle = value;
         else if ("labels_path".equals(key)) o.labelsPath = value;
         else if ("source_name".equals(key)) o.sourceName = value;
         else if ("reference".equals(key)) o.referenceChannel = value;
         else if ("output".equals(key) || "save_dir".equals(key)) {
             o.outputDirectory = value;
-        } else if ("intensity_norm".equals(key)) {
-            o.config.intensityNorm = intensityNorm(value);
-        } else if ("radial_bins".equals(key)) o.config.radialBins = integer(key, value);
-        else if ("curve_bins".equals(key)) o.config.resampleN = integer(key, value);
-        else if ("angular_bins".equals(key)) o.config.angularBins = integer(key, value);
-        else if ("shells".equals(key)) o.config.shells = integer(key, value);
-        else if ("padding".equals(key)) o.config.boxPadPct = number(key, value);
-        else if ("ring_threshold".equals(key)) o.config.ringThresholdPct = number(key, value);
-        else if ("reference_threshold".equals(key)) o.config.referenceThreshold = number(key, value);
-        else if ("partner_threshold".equals(key)) o.config.partnerThreshold = number(key, value);
-        else if ("glcm_levels".equals(key)) o.config.glcmLevels = integer(key, value);
-        else if ("glcm_distance".equals(key)) o.config.glcmDistance = integer(key, value);
-        else if ("texture_k".equals(key)) o.config.textureClasses = integer(key, value);
-        else if ("minimum_texture_voxels".equals(key)) {
-            o.config.minimumTextureVoxels = integer(key, value);
         } else {
             int slot = slot(key, "raw", "");
             if (slot >= 0) o.rawTitles[slot] = emptyAsNull(value);
@@ -88,36 +106,32 @@ final class OipMacroOptionsParser {
             else if ((slot = slot(key, "raw", "_name")) >= 0) o.rawNames[slot] = emptyAsNull(value);
             else if ((slot = slot(key, "quant_min", "")) >= 0) o.quantMin[slot] = number(key, value);
             else if ((slot = slot(key, "quant_max", "")) >= 0) o.quantMax[slot] = number(key, value);
-            else throw new IllegalArgumentException("Unknown macro option: " + key);
+            else if (isBatchOnlyKey(key)) {
+                throw new IllegalArgumentException(key
+                        + " is a folder-batch option; start the options with batch.");
+            } else throw new IllegalArgumentException("Unknown macro option: " + key);
         }
     }
 
     private static void applyFlag(OipMacroOptions o, String flag) {
-        if ("radial".equals(flag)) o.config.doRadial = true;
-        else if ("no_radial".equals(flag)) o.config.doRadial = false;
-        else if ("marginal".equals(flag)) o.config.doMarginal = true;
-        else if ("no_marginal".equals(flag)) o.config.doMarginal = false;
-        else if ("principal".equals(flag)) o.config.doPrincipalAxis = true;
-        else if ("no_principal".equals(flag)) o.config.doPrincipalAxis = false;
-        else if ("angular".equals(flag)) o.config.doAngular = true;
-        else if ("no_angular".equals(flag)) o.config.doAngular = false;
-        else if ("shell".equals(flag)) o.config.doShell = true;
-        else if ("no_shell".equals(flag)) o.config.doShell = false;
-        else if ("correlation".equals(flag)) o.config.doWithinBox = true;
-        else if ("no_correlation".equals(flag)) o.config.doWithinBox = false;
-        else if ("mask".equals(flag)) o.config.region = OipConfig.Region.OBJECT_VOXELS;
-        else if ("box".equals(flag)) o.config.region = OipConfig.Region.WHOLE_BOX;
-        else if ("glcm".equals(flag)) o.config.doGlcm = true;
-        else if ("no_glcm".equals(flag)) o.config.doGlcm = false;
-        else if ("texture_classes".equals(flag)) o.config.doTextureClasses = true;
-        else if ("no_texture_classes".equals(flag)) o.config.doTextureClasses = false;
-        else if ("save_figures".equals(flag)) o.saveFigures = true;
+        if (OipConfigOptions.applyFlag(o.config, flag)) return;
+        if ("save_figures".equals(flag)) o.saveFigures = true;
         else if ("no_figures".equals(flag)) o.saveFigures = false;
         else if ("save_maps".equals(flag)) o.saveClassMaps = true;
         else if ("no_maps".equals(flag)) o.saveClassMaps = false;
         else if ("auto_save".equals(flag) || "autosave".equals(flag)) o.autoSave = true;
         else if ("hide_display".equals(flag) || "no_display".equals(flag)) o.hideDisplay = true;
-        else throw new IllegalArgumentException("Unknown macro flag: " + flag);
+        else if ("batch".equals(flag)) {
+            throw new IllegalArgumentException("batch must be the first macro option.");
+        } else if ("recursive".equals(flag) || "no_recursive".equals(flag)) {
+            throw new IllegalArgumentException(flag
+                    + " is a folder-batch option; start the options with batch.");
+        } else throw new IllegalArgumentException("Unknown macro flag: " + flag);
+    }
+
+    private static boolean isBatchOnlyKey(String key) {
+        return "labels_folder".equals(key) || "labels_regex".equals(key)
+                || slot(key, "raw", "_folder") >= 0 || slot(key, "raw", "_regex") >= 0;
     }
 
     private static void validate(OipMacroOptions o) {
@@ -155,29 +169,8 @@ final class OipMacroOptionsParser {
         return middle.charAt(0) - '1';
     }
 
-    static int integer(String key, String value) {
-        try {
-            return Integer.parseInt(value);
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException(key + " must be an integer.");
-        }
-    }
-
     static double number(String key, String value) {
-        try {
-            return Double.parseDouble(value);
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException(key + " must be numeric.");
-        }
-    }
-
-    static OipConfig.IntensityNorm intensityNorm(String value) {
-        String normalized = value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
-        if ("minmax".equals(normalized)) return OipConfig.IntensityNorm.PER_OBJECT_MINMAX;
-        if ("mean".equals(normalized)) return OipConfig.IntensityNorm.DIVIDE_BY_MEAN;
-        if ("zscore".equals(normalized)) return OipConfig.IntensityNorm.ZSCORE;
-        throw new IllegalArgumentException(
-                "intensity_norm must be minmax, mean, or zscore.");
+        return OipConfigOptions.number(key, value);
     }
 
     private static String emptyAsNull(String value) {
