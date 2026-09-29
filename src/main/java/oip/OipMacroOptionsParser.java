@@ -135,6 +135,7 @@ final class OipMacroOptionsParser {
     }
 
     private static void validate(OipMacroOptions o) {
+        OipConfigOptions.validate(o.config);
         if (OipMacroOptions.hasText(o.labelsTitle) && OipMacroOptions.hasText(o.labelsPath)) {
             throw new IllegalArgumentException("Use labels or labels_path, not both.");
         }

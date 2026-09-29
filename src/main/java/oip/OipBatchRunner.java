@@ -41,6 +41,7 @@ import oip.profile.ObjectProfileResult;
 import oip.profile.ObjectProfileFigureWriter;
 import oip.profile.OipConfig;
 import oip.profile.ProfileAggregator;
+import oip.profile.ProfileShapeClassifier;
 import oip.profile.LabelObjects;
 import oip.texture.ObjectTextureAnalyzer;
 import oip.texture.ObjectTextureResult;
@@ -68,6 +69,8 @@ import java.util.regex.PatternSyntaxException;
 public final class OipBatchRunner {
 
     private static final String SAMPLE_OWNER_FILE = ".OIP_owned_sample";
+    /** Root aggregate tables written only when an opt-in feature is on. */
+    private static final String[] OPTIONAL_AGGREGATE_FILES = {"Profile_Class_Curves.csv"};
     private static final String SAMPLE_OWNER_MAGIC = "Object Intensity Profiling sample v1";
 
     private OipBatchRunner() {
@@ -117,6 +120,11 @@ public final class OipBatchRunner {
             OipConfig config = parameters.getConfig();
             List<RunRecord> runs = new ArrayList<RunRecord>();
             List<ObjectTextureResult> allTextures = new ArrayList<ObjectTextureResult>();
+            // Only the compact per-object curve of the chosen family is retained, so the
+            // batch-wide profile-class fit never keeps whole per-sample results in memory.
+            List<ProfileShapeClassifier.Curve> allCurves =
+                    new ArrayList<ProfileShapeClassifier.Curve>();
+            int[] curveCounts = new int[pairings.size()];
             ProfileAggregator aggregate = new ProfileAggregator();
             File samplesDirectory = new File(stagingRoot, "Samples");
             if (!samplesDirectory.isDirectory() && !samplesDirectory.mkdirs()) {
@@ -132,6 +140,12 @@ public final class OipBatchRunner {
                 for (ObjectProfileResult profile : result.getProfiles()) {
                     checkCancelled(parameters);
                     aggregate.addAll(profile, "(batch)", parameters.getCancellationToken());
+                }
+                if (config.doProfileClasses) {
+                    List<ProfileShapeClassifier.Curve> curves = ProfileShapeClassifier.curves(
+                            result.getProfiles(), config.profileClassFamily);
+                    curveCounts[i] = curves.size();
+                    allCurves.addAll(curves);
                 }
                 if (config.doTextureClasses) {
                     List<ObjectTextureResult> textures =
@@ -187,9 +201,14 @@ public final class OipBatchRunner {
                     checkCancelled(parameters);
                 }
             }
+            ProfileAggregator classCurves = null;
+            if (config.doProfileClasses) {
+                classCurves = stageProfileClasses(parameters, pairings, allCurves, curveCounts,
+                        samplesDirectory);
+            }
             try {
                 OipOutputWriter.saveAggregate(
-                        aggregate, stagingRoot, parameters.isSaveFigures(),
+                        aggregate, classCurves, stagingRoot, parameters.isSaveFigures(),
                         parameters.getCancellationToken());
                 writeSampleManifest(samplesDirectory, pairings);
             } catch (IOException e) {
@@ -208,6 +227,40 @@ public final class OipBatchRunner {
         } finally {
             cleanupTree(stagingRoot);
         }
+    }
+
+    /**
+     * Fit profile-shape classes once over every sample's curves, write each sample's classes
+     * and class-mean curves into its staged folder, and return the batch-wide class curves.
+     */
+    private static ProfileAggregator stageProfileClasses(
+            OipBatchParameters parameters, List<Pairing> pairings,
+            List<ProfileShapeClassifier.Curve> allCurves, int[] curveCounts,
+            File samplesDirectory) {
+        OipConfig config = parameters.getConfig();
+        progress(parameters, 0.97, "Fitting profile-shape classes across the batch");
+        IJ.log("Object Intensity Profiling: fitting profile-shape classes on "
+                + allCurves.size() + " retained " + config.profileClassFamily.macroValue
+                + " curves from " + pairings.size() + " samples.");
+        List<ProfileShapeClassifier.Assignment> assignments = ProfileShapeClassifier.classify(
+                allCurves, config.profileClasses, parameters.getCancellationToken());
+        int start = 0;
+        for (int i = 0; i < pairings.size(); i++) {
+            checkCancelled(parameters);
+            List<ProfileShapeClassifier.Assignment> sample =
+                    assignments.subList(start, start + curveCounts[i]);
+            start += curveCounts[i];
+            try {
+                OipOutputWriter.saveProfileClassOutputs(sample, config.profileClassFamily,
+                        new File(samplesDirectory, FileNameSupport.encode(pairings.get(i).key)),
+                        parameters.getCancellationToken());
+            } catch (IOException e) {
+                throw new IllegalStateException(
+                        "Could not stage profile classes for sample " + pairings.get(i).key, e);
+            }
+        }
+        return ProfileShapeClassifier.classCurves(assignments, config.profileClassFamily,
+                parameters.getCancellationToken());
     }
 
     private static OipResult analyze(final OipBatchParameters parameters, Pairing pairing,
@@ -588,6 +641,7 @@ public final class OipBatchRunner {
         if (!config.anyProfileEnabled() && !config.anyTextureFamilyEnabled()) {
             throw new IllegalArgumentException("Enable at least one profile or texture measurement.");
         }
+        ProfileShapeClassifier.validate(config);
     }
 
     private static File canonical(File file, String role) {
@@ -824,6 +878,10 @@ public final class OipBatchRunner {
             validateNoUnownedFigureTargets(liveFigures, currentFigures, previousFigures);
             validateRegularIfPresent(
                     new File(liveAggregate, "Aggregate_Profiles.csv"), "live aggregate table");
+            for (String optional : OPTIONAL_AGGREGATE_FILES) {
+                validateRegularIfPresent(new File(liveAggregate, optional),
+                        "live aggregate table");
+            }
             for (String figure : previousFigures) {
                 validateRegularIfPresent(new File(liveFigures, figure), "live figure");
             }
@@ -839,6 +897,12 @@ public final class OipBatchRunner {
             backupIfPresent(new File(liveAggregate, "Aggregate_Profiles.csv"),
                     new File(new File(backupRoot, "Aggregate"),
                             "Aggregate_Profiles.csv"), restore);
+            // Optional tables from an earlier run are backed up and, when this run did not
+            // produce them, not reinstalled: a stale profile-class table must not survive.
+            for (String optional : OPTIONAL_AGGREGATE_FILES) {
+                backupIfPresent(new File(liveAggregate, optional),
+                        new File(new File(backupRoot, "Aggregate"), optional), restore);
+            }
             for (String figure : previousFigures) {
                 backupIfPresent(new File(liveFigures, figure),
                         new File(new File(backupRoot, "Figures"), figure), restore);
@@ -854,6 +918,12 @@ public final class OipBatchRunner {
             }
             install(new File(stagedAggregate, "Aggregate_Profiles.csv"),
                     new File(liveAggregate, "Aggregate_Profiles.csv"), installed, fault);
+            for (String optional : OPTIONAL_AGGREGATE_FILES) {
+                File staged = new File(stagedAggregate, optional);
+                if (staged.exists()) {
+                    install(staged, new File(liveAggregate, optional), installed, fault);
+                }
+            }
             for (String figure : currentFigures) {
                 install(new File(stagedFigures, figure),
                         new File(liveFigures, figure), installed, fault);

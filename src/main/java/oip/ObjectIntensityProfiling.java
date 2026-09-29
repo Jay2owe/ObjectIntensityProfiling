@@ -41,6 +41,7 @@ import oip.profile.ObjectIntensityProfiler;
 import oip.profile.ObjectProfileResult;
 import oip.profile.OipConfig;
 import oip.profile.ProfileAggregator;
+import oip.profile.ProfileShapeClassifier;
 import oip.texture.ObjectTextureAnalyzer;
 import oip.texture.ObjectTextureResult;
 import oip.texture.QuantizationRange;
@@ -76,6 +77,7 @@ public final class ObjectIntensityProfiling {
         return run(parameters, true);
     }
 
+    /** Measure without fitting texture or profile-shape classes; a batch fits them globally. */
     static OipResult runWithDeferredTextureClasses(OipParameters parameters) {
         return run(parameters, false);
     }
@@ -138,13 +140,20 @@ public final class ObjectIntensityProfiling {
             aggregate.addAll(result, parameters.getGroupKey(),
                     parameters.getCancellationToken());
         }
+        List<ProfileShapeClassifier.Assignment> profileClasses = null;
+        if (config.doProfileClasses && assignTextureClasses) {
+            progress(parameters, 0.87, "Fitting profile-shape classes");
+            profileClasses = ProfileShapeClassifier.classify(
+                    ProfileShapeClassifier.curves(profiles, config.profileClassFamily),
+                    config.profileClasses, parameters.getCancellationToken());
+        }
         Map<String, ImagePlus> classMaps = parameters.isSaveClassMaps()
                 ? TextureClassMapRenderer.render(parameters.getLabelImage(), textures,
                         parameters.getCancellationToken())
                 : new LinkedHashMap<String, ImagePlus>();
 
         OipResult result = new OipResult(
-                parameters, profiles, textures, aggregate, ranges, classMaps);
+                parameters, profiles, textures, aggregate, ranges, classMaps, profileClasses);
         if (parameters.isAutoSave()) {
             progress(parameters, 0.90, "Saving results");
             try {
@@ -241,6 +250,7 @@ public final class ObjectIntensityProfiling {
         if (!config.anyProfileEnabled() && !config.anyTextureFamilyEnabled()) {
             throw new IllegalArgumentException("Enable at least one profile or texture measurement.");
         }
+        ProfileShapeClassifier.validate(config);
         if (parameters.isAutoSave() && parameters.getOutputDirectory() == null) {
             throw new IllegalArgumentException("An output directory is required when auto-save is enabled.");
         }

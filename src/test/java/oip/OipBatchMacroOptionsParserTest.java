@@ -55,8 +55,43 @@ public class OipBatchMacroOptionsParserTest {
         "radial_bins=9", "curve_bins=17", "angular_bins=8", "shells=5", "padding=12.5",
         "ring_threshold=40", "reference_threshold=2", "partner_threshold=3",
         "glcm_levels=16", "glcm_distance=2", "texture_k=3", "minimum_texture_voxels=20",
-        "zernike", "zernike_degree=4"
+        "zernike", "zernike_degree=4", "profile_k=2", "profile_class_type=shell"
     };
+
+    @Test
+    public void profileClassOptionsAreAcceptedInBothModesAndRoundTrip() {
+        String options = "profile_classes profile_k=2 profile_class_type=shell";
+        oip.profile.OipConfig single = OipMacroOptionsParser.parse(SINGLE + options).config;
+        oip.profile.OipConfig batch = OipBatchMacroOptionsParser.parse(BATCH + options).config;
+        for (oip.profile.OipConfig config : new oip.profile.OipConfig[] {single, batch}) {
+            assertTrue(config.doProfileClasses);
+            assertEquals(2, config.profileClasses);
+            assertEquals(oip.profile.ProfileShapeClassifier.Family.SHELL,
+                    config.profileClassFamily);
+        }
+        assertEquals(recordedConfig(single), recordedConfig(batch));
+        OipBatchMacroOptions parsed = OipBatchMacroOptionsParser.parse(BATCH + options);
+        assertEquals(recordedConfig(parsed.config), recordedConfig(
+                OipBatchMacroOptionsParser.parse(parsed.toMacroOptions()).config));
+        assertTrue((" " + parsed.toMacroOptions() + " ").contains(" profile_classes "));
+        assertTrue((" " + new OipBatchMacroOptions().toMacroOptions() + " ")
+                .contains(" no_profile_classes "));
+    }
+
+    @Test
+    public void profileClassOptionsAreValidatedInBothModes() {
+        String message = "profile_class_type=angular needs the angular profile; remove "
+                + "no_angular or choose another profile_class_type.";
+        assertRejected(SINGLE + "profile_classes profile_class_type=angular no_angular", message);
+        assertRejected(BATCH + "profile_classes profile_class_type=angular no_angular", message);
+        assertRejected(SINGLE + "profile_classes profile_k=0",
+                "profile_k must be between 1 and 255; got: 0");
+        assertRejected(BATCH + "profile_class_type=spiral", "profile_class_type must be radial");
+        assertRejected(SINGLE + "profile_classes no_profile_classes",
+                "profile_classes and no_profile_classes");
+        // The curve family is only checked when classes are requested.
+        OipMacroOptionsParser.parse(SINGLE + "profile_class_type=angular no_angular");
+    }
 
     @Test
     public void zernikeOptionsAreAcceptedInBothModesAndRangeChecked() {

@@ -35,6 +35,7 @@ package oip;
 import ij.ImagePlus;
 import oip.profile.ObjectProfileResult;
 import oip.profile.ProfileAggregator;
+import oip.profile.ProfileShapeClassifier;
 import oip.texture.ObjectTextureResult;
 import oip.texture.QuantizationRange;
 
@@ -55,6 +56,7 @@ public final class OipResult {
     private final ProfileAggregator aggregate;
     private final Map<String, QuantizationRange> quantizationRanges;
     private final Map<String, ImagePlus> classMaps;
+    private final List<ProfileShapeClassifier.Assignment> profileClasses;
     private File outputDirectory;
 
     OipResult(OipParameters parameters,
@@ -63,7 +65,19 @@ public final class OipResult {
               ProfileAggregator aggregate,
               Map<String, QuantizationRange> quantizationRanges,
               Map<String, ImagePlus> classMaps) {
+        this(parameters, profiles, textures, aggregate, quantizationRanges, classMaps, null);
+    }
+
+    OipResult(OipParameters parameters,
+              List<ObjectProfileResult> profiles,
+              List<ObjectTextureResult> textures,
+              ProfileAggregator aggregate,
+              Map<String, QuantizationRange> quantizationRanges,
+              Map<String, ImagePlus> classMaps,
+              List<ProfileShapeClassifier.Assignment> profileClasses) {
         this.parameters = parameters;
+        this.profileClasses = profileClasses == null ? null : Collections.unmodifiableList(
+                new ArrayList<ProfileShapeClassifier.Assignment>(profileClasses));
         this.profiles = Collections.unmodifiableList(
                 new ArrayList<ObjectProfileResult>(profiles));
         this.textures = Collections.unmodifiableList(
@@ -98,6 +112,14 @@ public final class OipResult {
 
     public Map<String, ImagePlus> getClassMaps() {
         return classMaps;
+    }
+
+    /**
+     * Profile-shape class of every object and partner, or null when profile classes are off or
+     * were deferred to a batch-wide fit.
+     */
+    public List<ProfileShapeClassifier.Assignment> getProfileClasses() {
+        return profileClasses;
     }
 
     public File getOutputDirectory() {

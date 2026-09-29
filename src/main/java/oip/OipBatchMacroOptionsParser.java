@@ -117,6 +117,7 @@ final class OipBatchMacroOptionsParser {
     }
 
     private static void validate(OipBatchMacroOptions o) {
+        OipConfigOptions.validate(o.config);
         if (!hasText(o.labelFolder) || !hasText(o.labelRegex) || !hasText(o.outputDirectory)) {
             throw new IllegalArgumentException(
                     "labels_folder, labels_regex, and output are required for batch mode.");

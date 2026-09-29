@@ -27,6 +27,9 @@ case-insensitive filesystem.
   k-means clustering.
 - Optional intensity-weighted Zernike moments (magnitude and phase up to a
   chosen degree) of each object's maximum-intensity projection.
+- Optional profile-shape classes: objects grouped by the shape of one
+  normalised curve (radial by default) with the same deterministic k-means,
+  fitted once across a whole folder batch.
 - Fixed GLCM quantisation per channel across a folder batch, with optional
   manual per-channel limits.
 - Per-object CSV files, object-weighted aggregate curves with standard error,
@@ -142,6 +145,9 @@ headless run. Manual GLCM limits use paired options such as
 | `minimum_texture_voxels` | `64` | Suppress texture below this object size |
 | `zernike` / `no_zernike` | disabled | Write Zernike moments to `Profiles/Object_Zernike.csv` |
 | `zernike_degree` | `9` | Highest Zernike order n, 1 to 20 (9 gives 30 moments) |
+| `profile_classes` / `no_profile_classes` | disabled | Write profile-shape classes to `Profiles/Profile_Classes.csv` and class-mean curves to `Aggregate/Profile_Class_Curves.csv` |
+| `profile_k` | `4` | Number of profile-shape classes, 1 to 255 |
+| `profile_class_type` | `radial` | Curve used for the classes: `radial`, `shell`, `angular`, `pc_major`, `marginal_x` or `marginal_y` |
 | `quant_minN`, `quant_maxN` | automatic | Manual fixed GLCM range for raw channel N |
 | `save_figures` / `no_figures` | save | Save or suppress aggregate figures |
 | `save_maps` / `no_maps` | save | Save or suppress texture class maps |
@@ -355,6 +361,25 @@ total intensity is not positive, and `ZernikeReliable` is false when the disk
 radius is under 5 pixels. Objects below `minimum_texture_voxels` are still
 measured. On the square pixel grid even a perfect disk shows a small four-fold
 term (\(m = 4, 8\), below 0.01 at a 30-pixel radius).
+
+Profile-shape classes (`profile_classes`) group objects whose normalised curve
+of one type (`profile_class_type`, radial by default) has a similar shape, for
+example centre-bright versus rim-bright objects. Each partner channel is
+clustered separately, on the curve exactly as written to
+`Per_Object_Profiles.csv` (`ValueNorm`, so the choice of `intensity_norm`
+matters), with the same seeded k-means as texture classes. In a folder batch
+the classes are fitted once over every sample's objects, so class 2 means the
+same shape in every sample. Class numbers follow the sorted order of the class
+centres, not brightness or any biological ranking: read what a class means from
+`Aggregate/Profile_Class_Curves.csv` or its figure, which overlays the class
+means for each partner channel. `ClassDistance` is the Euclidean distance to
+the class centre in normalised curve units. An object whose curve has an empty
+bin (common for small objects with many `radial_bins`) cannot be compared and
+gets a blank class; use fewer bins or the `shell` curve for small objects.
+`profile_k` is reduced to the number of usable objects when there are fewer.
+Angular and marginal curves are measured in image axes, so objects of the same
+shape but different orientation fall into different classes; use them only
+when orientation is part of the question.
 
 Two further reading notes. GLCM quantisation spans the whole batch, so one very
 bright image can push a dim object's voxels into a single grey level; the

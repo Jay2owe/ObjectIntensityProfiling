@@ -45,6 +45,7 @@ import oip.OipBatchParameters;
 import oip.OipBatchRunner;
 import oip.OipParameters;
 import oip.profile.OipConfig;
+import oip.profile.ProfileShapeClassifier;
 import oip.texture.QuantizationRange;
 
 import java.io.File;
@@ -288,6 +289,51 @@ final class GoldenCases {
                         .config(textureConfig())
                         .saveFigures(false)
                         .saveClassMaps(true)
+                        .build();
+                OipBatchRunner.run(parameters);
+            }
+        }));
+
+        cases.add(single("3d-profile-classes-shell-k3", new SingleSpec() {
+            @Override
+            OipParameters.Builder build() {
+                Scene scene = scene3d(64, 64, 10, 9, 22L);
+                OipConfig config = new OipConfig();
+                config.doProfileClasses = true;
+                config.profileClasses = 3;
+                config.profileClassFamily = ProfileShapeClassifier.Family.SHELL;
+                return OipParameters.builder(scene.labels(16, "labels-classes3d"))
+                        .addRawImage("P1", scene.raw("p1", 1601L, Pattern.NOISE))
+                        .addRawImage("P2", scene.raw("p2", 1602L, Pattern.GRADIENT_X))
+                        .referenceChannel("P1")
+                        .config(config);
+            }
+        }));
+
+        cases.add(new Case("batch-two-samples-profile-classes", new Runner() {
+            @Override
+            public void run(File output, File scratch) throws IOException {
+                File labels = mkdirs(new File(scratch, "labels"));
+                File c1 = mkdirs(new File(scratch, "c1"));
+                String[] keys = {"A", "B"};
+                Pattern[] patterns = {Pattern.CENTRE, Pattern.RIM};
+                for (int i = 0; i < keys.length; i++) {
+                    Scene scene = scene2d(72, 72, 7, 1700L + i);
+                    save(new File(labels, keys[i] + "_labels.tif"), scene.labels(16, keys[i]));
+                    save(new File(c1, keys[i] + "_c1.tif"),
+                            scene.raw("c1", 1800L + i, patterns[i], 1.0));
+                }
+                OipConfig config = new OipConfig();
+                config.doProfileClasses = true;
+                config.profileClasses = 2;
+                config.radialBins = 6;
+                OipBatchParameters parameters = OipBatchParameters.builder(
+                                labels, "(.*)_labels\\.tif", output)
+                        .addRawChannel("C1", c1, "(.*)_c1\\.tif")
+                        .referenceChannel("C1")
+                        .config(config)
+                        .saveFigures(false)
+                        .saveClassMaps(false)
                         .build();
                 OipBatchRunner.run(parameters);
             }

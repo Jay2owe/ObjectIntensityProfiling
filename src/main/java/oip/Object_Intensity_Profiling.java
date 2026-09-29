@@ -45,6 +45,7 @@ import oip.profile.ObjectProfileFigureWriter;
 import oip.profile.ObjectProfileResult;
 import oip.profile.OipConfig;
 import oip.profile.ProfileAggregator;
+import oip.profile.ProfileShapeClassifier;
 import oip.texture.QuantizationRange;
 import oip.texture.ZernikeMoments;
 
@@ -158,6 +159,7 @@ public final class Object_Intensity_Profiling implements PlugIn {
         dialog.addNumericField("Ring threshold (%)", 50, 1);
         dialog.addNumericField("Reference threshold", 0, 3);
         dialog.addNumericField("Partner threshold", 0, 3);
+        addProfileClassFields(dialog);
         dialog.addMessage("Texture (slow; disabled by default)");
         dialog.addCheckbox("GLCM texture", false);
         dialog.addNumericField("GLCM grey levels", 32, 0);
@@ -221,6 +223,7 @@ public final class Object_Intensity_Profiling implements PlugIn {
         options.config.ringThresholdPct = dialog.getNextNumber();
         options.config.referenceThreshold = dialog.getNextNumber();
         options.config.partnerThreshold = dialog.getNextNumber();
+        readProfileClassFields(dialog, options.config);
         options.config.doGlcm = dialog.getNextBoolean();
         options.config.glcmLevels = exactInteger(
                 "GLCM grey levels", dialog.getNextNumber());
@@ -294,6 +297,7 @@ public final class Object_Intensity_Profiling implements PlugIn {
         dialog.addNumericField("Ring threshold (%)", 50, 1);
         dialog.addNumericField("Reference threshold", 0, 3);
         dialog.addNumericField("Partner threshold", 0, 3);
+        addProfileClassFields(dialog);
         dialog.addMessage("Texture (slow; disabled by default)");
         dialog.addCheckbox("GLCM texture (slow)", false);
         dialog.addNumericField("GLCM grey levels", 32, 0);
@@ -342,6 +346,7 @@ public final class Object_Intensity_Profiling implements PlugIn {
         options.config.ringThresholdPct = dialog.getNextNumber();
         options.config.referenceThreshold = dialog.getNextNumber();
         options.config.partnerThreshold = dialog.getNextNumber();
+        readProfileClassFields(dialog, options.config);
         options.config.doGlcm = dialog.getNextBoolean();
         options.config.glcmLevels = exactInteger(
                 "GLCM grey levels", dialog.getNextNumber());
@@ -402,6 +407,24 @@ public final class Object_Intensity_Profiling implements PlugIn {
                     .append(" in total)");
         }
         return text.toString();
+    }
+
+    private static final String[] PROFILE_CLASS_CURVES = {
+        "Radial", "Shell", "Angular", "Principal major", "Marginal X", "Marginal Y"
+    };
+
+    private static void addProfileClassFields(GenericDialog dialog) {
+        dialog.addCheckbox("Profile-shape classes", false);
+        dialog.addChoice("Profile class curve", PROFILE_CLASS_CURVES, PROFILE_CLASS_CURVES[0]);
+        dialog.addNumericField("Profile classes (k)", 4, 0);
+    }
+
+    private static void readProfileClassFields(GenericDialog dialog, OipConfig config) {
+        config.doProfileClasses = dialog.getNextBoolean();
+        config.profileClassFamily =
+                ProfileShapeClassifier.Family.values()[dialog.getNextChoiceIndex()];
+        config.profileClasses = exactInteger("Profile classes (k)", dialog.getNextNumber());
+        OipConfigOptions.validate(config);
     }
 
     /** Record exactly one runnable line, replacing ImageJ's bare command line. */
@@ -551,6 +574,8 @@ public final class Object_Intensity_Profiling implements PlugIn {
             ResultsTable textures = OipTables.textures(result);
             if (textures.size() > 0) textures.show("Object Texture");
         }
+        ResultsTable profileClasses = OipTables.profileClasses(result);
+        if (profileClasses.size() > 0) profileClasses.show("Object Profile Classes");
         ResultsTable zernike = OipTables.zernike(result);
         if (zernike.size() > 0) zernike.show("Object Zernike");
         for (ImagePlus figure : aggregateFigures(result)) figure.show();

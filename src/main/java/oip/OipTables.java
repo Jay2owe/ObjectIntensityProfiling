@@ -34,6 +34,7 @@ package oip;
 
 import ij.measure.ResultsTable;
 import oip.profile.ObjectProfileResult;
+import oip.profile.ProfileShapeClassifier;
 import oip.texture.ObjectTextureFeatures;
 import oip.texture.ObjectTextureResult;
 import oip.texture.ZernikeMoments;
@@ -109,6 +110,24 @@ public final class OipTables {
             add(table, "Texture class",
                     texture.classLabel >= 0 ? texture.classLabel + 1 : Double.NaN);
             add(table, "Class distance", texture.classDistance);
+        }
+        return table;
+    }
+
+    public static ResultsTable profileClasses(OipResult result) {
+        ResultsTable table = new ResultsTable();
+        if (result.getProfileClasses() == null) return table;
+        String type = result.getParameters().getConfig().profileClassFamily.profileType;
+        for (ProfileShapeClassifier.Assignment assignment : result.getProfileClasses()) {
+            table.incrementCounter();
+            table.addValue("Source", assignment.curve.source);
+            table.addValue("Label", assignment.curve.label);
+            table.addValue("Voxel count", assignment.curve.voxelCount);
+            table.addValue("Partner", assignment.curve.partner);
+            table.addValue("Profile type", type);
+            add(table, "Profile class",
+                    assignment.classLabel >= 0 ? assignment.classLabel + 1 : Double.NaN);
+            add(table, "Class distance", assignment.distance);
         }
         return table;
     }

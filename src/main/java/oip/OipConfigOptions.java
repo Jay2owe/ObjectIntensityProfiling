@@ -33,6 +33,7 @@
 package oip;
 
 import oip.profile.OipConfig;
+import oip.profile.ProfileShapeClassifier;
 import oip.texture.ZernikeMoments;
 
 import java.util.Collections;
@@ -63,6 +64,7 @@ final class OipConfigOptions {
         pair(families, "glcm", "no_glcm");
         pair(families, "texture_classes", "no_texture_classes");
         pair(families, "zernike", "no_zernike");
+        pair(families, "profile_classes", "no_profile_classes");
         // Mode-level options that are also on/off pairs or aliases.
         pair(families, "save_figures", "no_figures");
         pair(families, "save_maps", "no_maps");
@@ -112,6 +114,8 @@ final class OipConfigOptions {
         else if ("no_texture_classes".equals(flag)) c.doTextureClasses = false;
         else if ("zernike".equals(flag)) c.doZernike = true;
         else if ("no_zernike".equals(flag)) c.doZernike = false;
+        else if ("profile_classes".equals(flag)) c.doProfileClasses = true;
+        else if ("no_profile_classes".equals(flag)) c.doProfileClasses = false;
         else return false;
         return true;
     }
@@ -133,6 +137,9 @@ final class OipConfigOptions {
         else if ("minimum_texture_voxels".equals(key)) c.minimumTextureVoxels = integer(key, value);
         else if ("zernike_degree".equals(key)) {
             c.zernikeDegree = integerInRange(key, value, 1, ZernikeMoments.MAX_DEGREE);
+        } else if ("profile_k".equals(key)) c.profileClasses = integerInRange(key, value, 1, 255);
+        else if ("profile_class_type".equals(key)) {
+            c.profileClassFamily = ProfileShapeClassifier.Family.parse(value);
         }
         else return false;
         return true;
@@ -164,6 +171,14 @@ final class OipConfigOptions {
         tokens.add("minimum_texture_voxels=" + config.minimumTextureVoxels);
         tokens.add(config.doZernike ? "zernike" : "no_zernike");
         tokens.add("zernike_degree=" + config.zernikeDegree);
+        tokens.add(config.doProfileClasses ? "profile_classes" : "no_profile_classes");
+        tokens.add("profile_k=" + config.profileClasses);
+        tokens.add("profile_class_type=" + config.profileClassFamily.macroValue);
+    }
+
+    /** Cross-option checks shared by both parsers, run after every option has been read. */
+    static void validate(OipConfig config) {
+        ProfileShapeClassifier.validate(config);
     }
 
     static int integer(String key, String value) {

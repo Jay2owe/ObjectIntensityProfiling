@@ -3,6 +3,7 @@
 # Regenerate: sh ./mvnw -B test -Dtest=GoldenOutputTest -Doip.golden.update=true -Doip.golden.reason="stage NN: why"
 # change-log: (append one line per intended update: date, stage, reason)
 # change-log: 2026-09-29 stage 03: added Zernike cases (additive) (at 414377c, jdk 21.0.12)
+# change-log: 2026-09-29 stage 04: add profile-shape class cases (single-image shell k=3; batch global fit) (at 08dc23f, jdk 21.0.12)
 2d-16bit-sparse-labels/Aggregate/Aggregate_Profiles.csv  0994aa460f30faccf41e49b0e3f9ec72ab878ff4628b461343fa8094ae99950b
 2d-16bit-sparse-labels/Profiles/Object_Summaries.csv  4b1ebf2a95c01087d7e6628db6f18d26b2e20058a05888deca7adcc2163e3847
 2d-16bit-sparse-labels/Profiles/Per_Object_Profiles.csv  236472a786e6d268d1372461ccffa15a175af5ffa65a15e35048be4d0279e615
@@ -63,6 +64,13 @@
 3d-nan-one-voxel-border/Profiles/Per_Object_Profiles.csv  b1b9bb00be3a19040b8346f1e2e341961fc2d4c4a0e8901dbeee0e6fcfde94e6
 3d-nan-one-voxel-border/Texture/Object_Texture.csv  3a0045949bed21c2ddca1ce451434ec1ff789ec5cb900660a7a6c82fb3b8319a
 3d-nan-one-voxel-border/Texture/Quantization_Ranges.csv  de3f5e2e15869fc2f3b6dc9b68cca086a88491fb07a686ab463d7f1e7ef8a302
+3d-profile-classes-shell-k3/Aggregate/Aggregate_Profiles.csv  a3b9eb5ba0b22550f811034be6a524e35b7b718f130279da70bcb17dae48f2f3
+3d-profile-classes-shell-k3/Aggregate/Profile_Class_Curves.csv  4b2bb9934336efc95754bdebc26da9970eb55a203dddfb99d19eb772a8b0cdcd
+3d-profile-classes-shell-k3/Profiles/Object_Summaries.csv  ab6f5398930017e74849d47ce575816765167bb18f90b3fbc01e99affde8118b
+3d-profile-classes-shell-k3/Profiles/Per_Object_Profiles.csv  24a92169d3669b4155d386c6c23f5488aab3a8a2b02112838d24f377f1b4e7ca
+3d-profile-classes-shell-k3/Profiles/Profile_Classes.csv  9fd0cd630c929cf4e600f17d637160faf7c8e400e25ada3bb59bcf28b4fc64ae
+3d-profile-classes-shell-k3/Texture/Object_Texture.csv  3a0045949bed21c2ddca1ce451434ec1ff789ec5cb900660a7a6c82fb3b8319a
+3d-profile-classes-shell-k3/Texture/Quantization_Ranges.csv  de3f5e2e15869fc2f3b6dc9b68cca086a88491fb07a686ab463d7f1e7ef8a302
 3d-zernike-only-degree4/Aggregate/Aggregate_Profiles.csv  b32516880cdd67502e552a4ef2cf4cf3c14cbe7bcc9868d30c10ff9701eced32
 3d-zernike-only-degree4/Profiles/Object_Summaries.csv  0aa1201fa1a965d9b05d35f15a547fe0e440ec69333b446ce7d90f2996f59953
 3d-zernike-only-degree4/Profiles/Object_Zernike.csv  fc4a68efa3764073bd5a9f6d364812bd424af986b19e21150dc706a012ca1799
@@ -91,3 +99,19 @@ batch-three-samples-texture/Samples/S3/Profiles/Object_Summaries.csv  eb18f18e2d
 batch-three-samples-texture/Samples/S3/Profiles/Per_Object_Profiles.csv  5508155530faefc07381df813342fed0fa7d174342a56f34b3080b1a3303277d
 batch-three-samples-texture/Samples/S3/Texture/Object_Texture.csv  871c3d16f101f41e7bb7ac43db6bab456b5381e084004cc97b199bac0ad6e8c5
 batch-three-samples-texture/Samples/S3/Texture/Quantization_Ranges.csv  4526b22b76d719e0b1dc3404fb95ddb169e2e4cfcb76a2529bb008c04756b44b
+batch-two-samples-profile-classes/Aggregate/Aggregate_Profiles.csv  36dce45a24dc27138733509eb398a7593da6c551689f18235dc4ae9d6051077f
+batch-two-samples-profile-classes/Aggregate/Profile_Class_Curves.csv  8fe638c0cc0ceb0ac5d504031862906fae3f3e18b59f079e4bda41ec92ef1ccd
+batch-two-samples-profile-classes/Samples/A/Aggregate/Aggregate_Profiles.csv  5223cf2a728b528c2b628d54ed3d7557a2259726c2d581c02116574a9ae1a625
+batch-two-samples-profile-classes/Samples/A/Aggregate/Profile_Class_Curves.csv  f7fd4c779a5bb160c50b3a455fb8bdacaac34b26b6935592e947f9164744aa1b
+batch-two-samples-profile-classes/Samples/A/Profiles/Object_Summaries.csv  64f77cba6dc1b662a3f9deea6bcf9f4eaa427b1494e3ba5f87f2deb8f100f229
+batch-two-samples-profile-classes/Samples/A/Profiles/Per_Object_Profiles.csv  df0f5ea9ac99fd9c790c9a6e097163950fb30659b29ab37efc16fdbefaa60f80
+batch-two-samples-profile-classes/Samples/A/Profiles/Profile_Classes.csv  29442ed4157e20a57b394e159b1855e251581f896cbc7d9c76b8f22354e7fa54
+batch-two-samples-profile-classes/Samples/A/Texture/Object_Texture.csv  3a0045949bed21c2ddca1ce451434ec1ff789ec5cb900660a7a6c82fb3b8319a
+batch-two-samples-profile-classes/Samples/A/Texture/Quantization_Ranges.csv  de3f5e2e15869fc2f3b6dc9b68cca086a88491fb07a686ab463d7f1e7ef8a302
+batch-two-samples-profile-classes/Samples/B/Aggregate/Aggregate_Profiles.csv  a852d709b64fd54c4f22862917055f7f08293e0865a71559760b1d563174ebee
+batch-two-samples-profile-classes/Samples/B/Aggregate/Profile_Class_Curves.csv  62df6688dcb771a020b1750c140e8d8457253fb69449150980122d4c5a17890e
+batch-two-samples-profile-classes/Samples/B/Profiles/Object_Summaries.csv  316bb762a0927e8c5caa9b0f19a7a9c918b764c67b0b0c0e8043aa75ca5ff08b
+batch-two-samples-profile-classes/Samples/B/Profiles/Per_Object_Profiles.csv  9c41574c4c7e7caa0a2f9593f248ceb0bb922ffa1d16d9a372fde82941a9dfd6
+batch-two-samples-profile-classes/Samples/B/Profiles/Profile_Classes.csv  fc348418bc5b096a6eebfdee016c64c17eff93845e2d666053fb05fac2e40381
+batch-two-samples-profile-classes/Samples/B/Texture/Object_Texture.csv  3a0045949bed21c2ddca1ce451434ec1ff789ec5cb900660a7a6c82fb3b8319a
+batch-two-samples-profile-classes/Samples/B/Texture/Quantization_Ranges.csv  de3f5e2e15869fc2f3b6dc9b68cca086a88491fb07a686ab463d7f1e7ef8a302

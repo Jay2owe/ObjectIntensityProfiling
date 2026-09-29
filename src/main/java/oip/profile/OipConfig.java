@@ -103,6 +103,13 @@ public final class OipConfig {
     /** Highest Zernike order n (1..20); 9 gives 30 moments. */
     public int zernikeDegree = 9;
 
+    /** Group objects by the shape of one normalised curve (opt-in). */
+    public boolean doProfileClasses = false;
+    /** Requested number of profile-shape classes (1..255). */
+    public int profileClasses = 4;
+    /** Curve family used as each object's shape vector. */
+    public ProfileShapeClassifier.Family profileClassFamily = ProfileShapeClassifier.Family.RADIAL;
+
     public boolean anyProfileEnabled() {
         return doRadial || doMarginal || doPrincipalAxis || doAngular || doShell || doWithinBox;
     }
@@ -139,6 +146,9 @@ public final class OipConfig {
         c.minimumTextureVoxels = minimumTextureVoxels;
         c.doZernike = doZernike;
         c.zernikeDegree = zernikeDegree;
+        c.doProfileClasses = doProfileClasses;
+        c.profileClasses = profileClasses;
+        c.profileClassFamily = profileClassFamily;
         return c;
     }
 }

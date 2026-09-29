@@ -34,6 +34,7 @@ package oip.texture;
 
 import oip.ObjectIntensityProfiling;
 import oip.OipParameters;
+import oip.cluster.KMeans;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -43,14 +44,11 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Random;
 
 /**
- * Gabor and wavelet object texture features plus deterministic k-means helpers.
+ * Gabor and wavelet object texture features; class fitting delegates to {@link KMeans}.
  */
 public final class ObjectTextureFeatures {
     public static final int DEFAULT_GABOR_ORIENTATIONS = 4;
@@ -72,8 +70,6 @@ public final class ObjectTextureFeatures {
     /** Side length of the square Gabor kernel, in pixels. Objects smaller than this are unreliable. */
     public static final int GABOR_KERNEL_SIZE = 2 * (int) Math.ceil(3.0 * GABOR_SIGMA_PX) + 1;
 
-    private static final long KMEANS_SEED = 3405691582L;
-    private static final int KMEANS_MAX_ITERATIONS = 100;
     private static final double[] ATROUS_KERNEL = {1.0 / 16.0, 4.0 / 16.0, 6.0 / 16.0, 4.0 / 16.0, 1.0 / 16.0};
 
     private ObjectTextureFeatures() {
@@ -246,110 +242,7 @@ public final class ObjectTextureFeatures {
             throw new IllegalArgumentException("k must be positive");
         }
 
-        List<double[]> vectors = usableVectors(all, cancellation);
-        if (vectors.isEmpty()) {
-            return new double[0][0];
-        }
-        int dim = vectors.get(0).length;
-        while (vectors.size() < k) {
-            vectors.add(Arrays.copyOf(vectors.get(vectors.size() - 1), dim));
-        }
-
-        double[][] centroids = initializeKMeansPlusPlus(vectors, k, dim, cancellation);
-        int[] assignment = new int[vectors.size()];
-        Arrays.fill(assignment, -1);
-        for (int iteration = 0; iteration < KMEANS_MAX_ITERATIONS; iteration++) {
-            checkCancelled(cancellation);
-            boolean changed = false;
-            for (int i = 0; i < vectors.size(); i++) {
-                if ((i & 255) == 0) checkCancelled(cancellation);
-                int nearest = nearest(vectors.get(i), centroids);
-                if (assignment[i] != nearest) {
-                    assignment[i] = nearest;
-                    changed = true;
-                }
-            }
-
-            double[][] sums = new double[k][dim];
-            int[] counts = new int[k];
-            for (int i = 0; i < vectors.size(); i++) {
-                if ((i & 255) == 0) checkCancelled(cancellation);
-                int cluster = assignment[i];
-                counts[cluster]++;
-                double[] point = vectors.get(i);
-                for (int d = 0; d < dim; d++) sums[cluster][d] += point[d];
-            }
-            for (int c = 0; c < k; c++) {
-                if (counts[c] == 0) continue;
-                for (int d = 0; d < dim; d++) centroids[c][d] = sums[c][d] / counts[c];
-            }
-            if (!changed) break;
-        }
-
-        List<double[]> sorted = new ArrayList<double[]>(Arrays.asList(centroids));
-        Collections.sort(sorted, new LexicographicDoubleArrayComparator());
-        return sorted.toArray(new double[sorted.size()][]);
-    }
-
-    private static double[][] initializeKMeansPlusPlus(
-            List<double[]> vectors, int k, int dim,
-            OipParameters.CancellationToken cancellation) {
-        Random random = new Random(KMEANS_SEED);
-        double[][] centers = new double[k][dim];
-        centers[0] = Arrays.copyOf(vectors.get(random.nextInt(vectors.size())), dim);
-        double[] distance = new double[vectors.size()];
-        for (int c = 1; c < k; c++) {
-            checkCancelled(cancellation);
-            double total = 0.0;
-            for (int i = 0; i < vectors.size(); i++) {
-                if ((i & 255) == 0) checkCancelled(cancellation);
-                double best = Double.POSITIVE_INFINITY;
-                for (int previous = 0; previous < c; previous++) {
-                    best = Math.min(best, squaredDistance(vectors.get(i), centers[previous]));
-                }
-                distance[i] = best;
-                total += best;
-            }
-            int selected;
-            if (total <= 0.0 || !isFinite(total)) {
-                selected = c % vectors.size();
-            } else {
-                double target = random.nextDouble() * total;
-                double cumulative = 0.0;
-                selected = vectors.size() - 1;
-                for (int i = 0; i < vectors.size(); i++) {
-                    cumulative += distance[i];
-                    if (cumulative >= target) {
-                        selected = i;
-                        break;
-                    }
-                }
-            }
-            centers[c] = Arrays.copyOf(vectors.get(selected), dim);
-        }
-        return centers;
-    }
-
-    private static int nearest(double[] point, double[][] centroids) {
-        int best = 0;
-        double bestDistance = squaredDistance(point, centroids[0]);
-        for (int c = 1; c < centroids.length; c++) {
-            double candidate = squaredDistance(point, centroids[c]);
-            if (candidate < bestDistance) {
-                bestDistance = candidate;
-                best = c;
-            }
-        }
-        return best;
-    }
-
-    private static double squaredDistance(double[] left, double[] right) {
-        double sum = 0.0;
-        for (int i = 0; i < left.length; i++) {
-            double delta = left[i] - right[i];
-            sum += delta * delta;
-        }
-        return sum;
+        return KMeans.fit(usableVectors(all, cancellation), k, cancellation);
     }
 
     private static List<double[]> usableVectors(
@@ -641,18 +534,6 @@ public final class ObjectTextureFeatures {
             this.wavelength = wavelength;
             this.sigma = sigma;
             this.kernelSize = kernelSize;
-        }
-    }
-
-    private static final class LexicographicDoubleArrayComparator implements Comparator<double[]> {
-        @Override
-        public int compare(double[] left, double[] right) {
-            int n = Math.min(left.length, right.length);
-            for (int i = 0; i < n; i++) {
-                int cmp = Double.compare(left[i], right[i]);
-                if (cmp != 0) return cmp;
-            }
-            return Integer.compare(left.length, right.length);
         }
     }
 }

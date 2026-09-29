@@ -40,6 +40,7 @@ import oip.OipParameters;
 import oip.profile.ObjectProfileFigureWriter;
 import oip.profile.ObjectProfileResult;
 import oip.profile.ProfileAggregator;
+import oip.profile.ProfileShapeClassifier;
 import oip.texture.ObjectTextureFeatures;
 import oip.texture.ObjectTextureResult;
 import oip.texture.QuantizationRange;
@@ -73,7 +74,9 @@ public final class OipOutputWriter {
     };
     /** Plugin-owned tables written only when their optional family is enabled. */
     private static final String[] OPTIONAL_CSV_FILES = {
-        "Profiles/Object_Zernike.csv"
+        "Profiles/Object_Zernike.csv",
+        "Profiles/Profile_Classes.csv",
+        "Aggregate/Profile_Class_Curves.csv"
     };
 
     private OipOutputWriter() {
@@ -105,6 +108,11 @@ public final class OipOutputWriter {
         if (config.doZernike) {
             writeZernike(new File(profiles, "Object_Zernike.csv"), result, cancellation);
         }
+        ProfileAggregator classCurves = null;
+        if (config.doProfileClasses && result.getProfileClasses() != null) {
+            classCurves = saveProfileClassOutputs(result.getProfileClasses(),
+                    config.profileClassFamily, root, cancellation);
+        }
         writeRanges(new File(texture, "Quantization_Ranges.csv"),
                 result.getQuantizationRanges(), cancellation);
         writeAggregate(new File(aggregate, "Aggregate_Profiles.csv"), result, cancellation);
@@ -115,6 +123,7 @@ public final class OipOutputWriter {
                 checkCancelled(cancellation);
                 figureAggregate.addAll(profile, result.getParameters().getGroupKey(), cancellation);
             }
+            figureAggregate.merge(classCurves);
             ObjectProfileFigureWriter.writeFigures(figures, figureAggregate, null, cancellation);
         } else {
             ObjectProfileFigureWriter.clearFigures(figures, cancellation);
@@ -163,6 +172,71 @@ public final class OipOutputWriter {
         writeClassMaps(maps, classMaps, saveClassMaps, cancellation);
     }
 
+    /**
+     * Write {@code Profiles/Profile_Classes.csv} and {@code Aggregate/Profile_Class_Curves.csv}
+     * for these assignments under {@code root}, returning the class-mean curves for figures.
+     */
+    public static ProfileAggregator saveProfileClassOutputs(
+            List<ProfileShapeClassifier.Assignment> assignments,
+            ProfileShapeClassifier.Family family, File root,
+            OipParameters.CancellationToken cancellation) throws IOException {
+        if (root == null) throw new IllegalArgumentException("Output directory must not be null.");
+        if (assignments == null) throw new IllegalArgumentException("Assignments must not be null.");
+        writeProfileClasses(new File(directory(root, "Profiles"), "Profile_Classes.csv"),
+                assignments, family, cancellation);
+        ProfileAggregator curves = ProfileShapeClassifier.classCurves(
+                assignments, family, cancellation);
+        writeClassCurves(new File(directory(root, "Aggregate"), "Profile_Class_Curves.csv"),
+                curves, cancellation);
+        return curves;
+    }
+
+    private static void writeProfileClasses(
+            File file, List<ProfileShapeClassifier.Assignment> assignments,
+            ProfileShapeClassifier.Family family,
+            OipParameters.CancellationToken cancellation) throws IOException {
+        PendingCsv pending = writer(file);
+        PrintWriter writer = pending.writer;
+        try {
+            writer.println("Source,Label,VoxelCount,Partner,ProfileType,ProfileClass,ClassDistance");
+            for (ProfileShapeClassifier.Assignment assignment : assignments) {
+                checkCancelled(cancellation);
+                writer.println(CsvSupport.field(assignment.curve.source) + ","
+                        + assignment.curve.label + "," + assignment.curve.voxelCount + ","
+                        + CsvSupport.field(assignment.curve.partner) + ","
+                        + CsvSupport.field(family.profileType) + ","
+                        + (assignment.classLabel < 0 ? "" : assignment.classLabel + 1) + ","
+                        + CsvSupport.number(assignment.distance));
+            }
+        } finally {
+            close(pending);
+        }
+    }
+
+    private static void writeClassCurves(File file, ProfileAggregator curves,
+                                         OipParameters.CancellationToken cancellation)
+            throws IOException {
+        PendingCsv pending = writer(file);
+        PrintWriter writer = pending.writer;
+        try {
+            writer.println("Partner,ProfileType,ProfileClass,Bin,AxisNorm,Mean,SEM,N");
+            for (ProfileAggregator.AggregatedProfile curve : curves.results(cancellation)) {
+                checkCancelled(cancellation);
+                for (int i = 0; i < curve.mean.length; i++) {
+                    writer.println(CsvSupport.field(curve.source) + ","
+                            + CsvSupport.field(curve.profileType) + ","
+                            + CsvSupport.field(curve.partner) + ","
+                            + i + "," + CsvSupport.number(curve.x[i]) + ","
+                            + CsvSupport.number(curve.mean[i]) + ","
+                            + CsvSupport.number(curve.sem[i]) + ","
+                            + curve.n[i]);
+                }
+            }
+        } finally {
+            close(pending);
+        }
+    }
+
     /** Write object-weighted aggregate curves and figures for a combined batch. */
     public static void saveAggregate(ProfileAggregator aggregate, File root,
                                      boolean saveFigures) throws IOException {
@@ -173,14 +247,35 @@ public final class OipOutputWriter {
                                      boolean saveFigures,
                                      OipParameters.CancellationToken cancellation)
             throws IOException {
+        saveAggregate(aggregate, null, root, saveFigures, cancellation);
+    }
+
+    /**
+     * Write the batch aggregate; {@code classCurves}, when not null, is written to
+     * {@code Aggregate/Profile_Class_Curves.csv} and drawn as extra per-partner figures.
+     */
+    public static void saveAggregate(ProfileAggregator aggregate, ProfileAggregator classCurves,
+                                     File root, boolean saveFigures,
+                                     OipParameters.CancellationToken cancellation)
+            throws IOException {
         if (aggregate == null) throw new IllegalArgumentException("Aggregate must not be null.");
         File aggregateDirectory = directory(root, "Aggregate");
         writeAggregate(new File(aggregateDirectory, "Aggregate_Profiles.csv"),
                 aggregate, cancellation);
+        if (classCurves != null) {
+            writeClassCurves(new File(aggregateDirectory, "Profile_Class_Curves.csv"),
+                    classCurves, cancellation);
+        }
         File figureDirectory = directory(root, "Figures");
         if (saveFigures) {
+            ProfileAggregator figures = aggregate;
+            if (classCurves != null) {
+                figures = new ProfileAggregator();
+                figures.merge(aggregate);
+                figures.merge(classCurves);
+            }
             ObjectProfileFigureWriter.writeFigures(
-                    figureDirectory, aggregate, null, cancellation);
+                    figureDirectory, figures, null, cancellation);
         } else {
             ObjectProfileFigureWriter.clearFigures(figureDirectory, cancellation);
         }
