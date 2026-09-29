@@ -68,8 +68,8 @@ then available at `Plugins > Object Intensity Profiling`.
 
 ## Interactive use
 
-1. Open one label image and one to four raw images with identical width,
-   height and slice count.
+1. Open one label image (or keep an ImageJ ROI set file to hand) and one to
+   four raw images with identical width, height and slice count.
 2. Run `Plugins > Object Intensity Profiling`.
 3. Choose **Open images** or **Folder batch**.
 4. Choose the correlation reference raw channel.
@@ -119,7 +119,43 @@ run("Object Intensity Profiling",
 ```
 
 Use `labels_path`, `raw1_path` ... `raw4_path` for images that are not
-already open. Add `auto_save output=[C:/analysis/OIP] hide_display` for a
+already open.
+
+### ROI inputs
+
+Objects can come from an ImageJ ROI set instead of a label image, and an
+optional region ROI set can restrict which objects are profiled:
+
+```text
+run("Object Intensity Profiling",
+    "objects_roi=[C:/data/cells.zip] raw1_path=[C:/data/dapi.tif] " +
+    "region_roi=[C:/data/scn.roi]");
+```
+
+- `objects_roi` reads a `.zip` ROI set (as saved by the ROI Manager) or a
+  single `.roi` file and turns it into a label image the size of `raw1`, with
+  its calibration. ROI 1 in the file becomes label 1, ROI 2 label 2, and so on;
+  the `Source` column is the ROI file name without its extension. An ROI with a
+  Z position (*Properties...* or the ROI Manager's slice) is drawn on that slice
+  only; an ROI without one is drawn on every slice, as a column through the
+  stack. Where ROIs overlap, the later ROI in the file owns the shared pixels,
+  so an ROI completely covered by a later one leaves no object. Every ROI must
+  enclose an area: line, angle and point selections, empty ROIs, ROIs outside
+  the image and ROIs positioned beyond the last slice are rejected with a
+  message naming the ROI.
+- `region_roi` keeps only objects whose centroid lies inside the union of the
+  region's area ROIs. The centroid is tested at its nearest pixel (halves round
+  up) on its nearest slice, and a region ROI with a Z position applies to that
+  slice only, following the same rule as object ROIs. Line or point region ROIs
+  are rejected, and a region that contains no object centroid stops the run
+  with a message naming the ROI file.
+- In the **Open images** dialog, choose *Objects from: ROI set file* and pick
+  the file; the region ROI set is an optional file field.
+- Folder batches do not take ROI inputs in this version; convert each ROI set
+  to a label image first or run the images one at a time.
+
+From Java, `OipRoiInputs.labelsFromRoiSet(reference, path)` returns the label
+image and `OipParameters.Builder.regionRois(Roi[])` sets the region. Add `auto_save output=[C:/analysis/OIP] hide_display` for a
 headless run. Manual GLCM limits use paired options such as
 `quant_min1=0 quant_max1=65535`.
 
@@ -128,6 +164,8 @@ headless run. Manual GLCM limits use paired options such as
 | Option | Default | Meaning |
 |---|---:|---|
 | `labels` / `labels_path` | required | Open label-image title or file path |
+| `objects_roi` | — | ROI set (`.zip` or `.roi`) defining the objects instead of `labels`; see [ROI inputs](#roi-inputs) |
+| `region_roi` | all objects | ROI set; keep only objects whose centroid lies inside it |
 | `raw1` ... `raw4` / `rawN_path` | `raw1` required | Open raw-image title or file path |
 | `rawN_name` | image title | Stable output/API channel name |
 | `reference` | sole raw channel | Correlation reference; required with multiple raw channels |

@@ -4,6 +4,7 @@
 # change-log: (append one line per intended update: date, stage, reason)
 # change-log: 2026-09-29 stage 03: added Zernike cases (additive) (at 414377c, jdk 21.0.12)
 # change-log: 2026-09-29 stage 04: add profile-shape class cases (single-image shell k=3; batch global fit) (at 08dc23f, jdk 21.0.12)
+# change-log: 2026-09-29 stage 05: add ROI-set object input and region-ROI restriction cases (at 4e7780f, jdk 21.0.12)
 2d-16bit-sparse-labels/Aggregate/Aggregate_Profiles.csv  0994aa460f30faccf41e49b0e3f9ec72ab878ff4628b461343fa8094ae99950b
 2d-16bit-sparse-labels/Profiles/Object_Summaries.csv  4b1ebf2a95c01087d7e6628db6f18d26b2e20058a05888deca7adcc2163e3847
 2d-16bit-sparse-labels/Profiles/Per_Object_Profiles.csv  236472a786e6d268d1372461ccffa15a175af5ffa65a15e35048be4d0279e615
@@ -31,6 +32,11 @@
 2d-radial-shell-only/Profiles/Per_Object_Profiles.csv  926a956fa1378af8f85b16de76c3ef0cb069e72bc8c34c247a45ccd736132c37
 2d-radial-shell-only/Texture/Object_Texture.csv  3a0045949bed21c2ddca1ce451434ec1ff789ec5cb900660a7a6c82fb3b8319a
 2d-radial-shell-only/Texture/Quantization_Ranges.csv  de3f5e2e15869fc2f3b6dc9b68cca086a88491fb07a686ab463d7f1e7ef8a302
+2d-roi-set-objects/Aggregate/Aggregate_Profiles.csv  88dcf25b89626ab955256609fd38a9a95c446f137889e24de196f1c48445d96f
+2d-roi-set-objects/Profiles/Object_Summaries.csv  9e6061ca660c9d66952ebf5e86e1fa51b6a9137e5b2808a287e0c98b5c025267
+2d-roi-set-objects/Profiles/Per_Object_Profiles.csv  fcd553c69bd134fe192b91b90962c2d2fc08f076728f1f5e001938554cc249fc
+2d-roi-set-objects/Texture/Object_Texture.csv  3a0045949bed21c2ddca1ce451434ec1ff789ec5cb900660a7a6c82fb3b8319a
+2d-roi-set-objects/Texture/Quantization_Ranges.csv  de3f5e2e15869fc2f3b6dc9b68cca086a88491fb07a686ab463d7f1e7ef8a302
 2d-two-channels-box-pad25-zscore/Aggregate/Aggregate_Profiles.csv  2a43fde17c4bc68dbcfd0dd3addbabd36e78505455f8a700b5fca08abcf6ce56
 2d-two-channels-box-pad25-zscore/Profiles/Object_Summaries.csv  b864aa274c9f5f2a96058090a2ac14d64f4a37118a6b836913abc6b9d39a3445
 2d-two-channels-box-pad25-zscore/Profiles/Per_Object_Profiles.csv  716f1a3ac0755dc4c95d9b817dca16828afe96223cf32f9190793f7ea383014c
@@ -71,6 +77,11 @@
 3d-profile-classes-shell-k3/Profiles/Profile_Classes.csv  9fd0cd630c929cf4e600f17d637160faf7c8e400e25ada3bb59bcf28b4fc64ae
 3d-profile-classes-shell-k3/Texture/Object_Texture.csv  3a0045949bed21c2ddca1ce451434ec1ff789ec5cb900660a7a6c82fb3b8319a
 3d-profile-classes-shell-k3/Texture/Quantization_Ranges.csv  de3f5e2e15869fc2f3b6dc9b68cca086a88491fb07a686ab463d7f1e7ef8a302
+3d-region-roi-restricted/Aggregate/Aggregate_Profiles.csv  50c38c2f5ceb3e89de1958cb07867a3e702fc9e64dab594a3dcea24093337da5
+3d-region-roi-restricted/Profiles/Object_Summaries.csv  5aa3c5311653889be3922e82770995f764b800899b810ba58d27d8a35615109e
+3d-region-roi-restricted/Profiles/Per_Object_Profiles.csv  03cbd7062f6e1aa66b2869c624abc6023c651e2ebf1692d16ad9f9bf43dc3b01
+3d-region-roi-restricted/Texture/Object_Texture.csv  3a0045949bed21c2ddca1ce451434ec1ff789ec5cb900660a7a6c82fb3b8319a
+3d-region-roi-restricted/Texture/Quantization_Ranges.csv  de3f5e2e15869fc2f3b6dc9b68cca086a88491fb07a686ab463d7f1e7ef8a302
 3d-zernike-only-degree4/Aggregate/Aggregate_Profiles.csv  b32516880cdd67502e552a4ef2cf4cf3c14cbe7bcc9868d30c10ff9701eced32
 3d-zernike-only-degree4/Profiles/Object_Summaries.csv  0aa1201fa1a965d9b05d35f15a547fe0e440ec69333b446ce7d90f2996f59953
 3d-zernike-only-degree4/Profiles/Object_Zernike.csv  fc4a68efa3764073bd5a9f6d364812bd424af986b19e21150dc706a012ca1799

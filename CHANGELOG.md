@@ -16,6 +16,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   written to `Profiles/Profile_Classes.csv`, `Aggregate/Profile_Class_Curves.csv` and a
   class-mean figure per partner, with an interactive *Object Profile Classes* table. A folder
   batch fits the classes once across every sample.
+- ROI inputs for single images: `objects_roi=[...]` defines objects from an ImageJ ROI set
+  instead of a label image, and `region_roi=[...]` profiles only objects whose centroid lies
+  inside a region ROI set. Both are also in the *Open images* dialog and the Java API
+  (`OipRoiInputs`, `OipParameters.Builder.regionRois`).
 
 ### Changed
 - Macro options are parsed by one shared table in single-image and batch mode. An option given
@@ -30,5 +34,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Deferred
 - True 3D Zernike moments: this release measures each object's maximum-intensity projection.
   Planned for a later version.
+- ROI inputs in folder batches: pairing one ROI set with each sample needs its own file-name
+  pattern design, so batches keep label-image input in this version.
 - Profile-shape classes from several curve types at once (for example radial and shell
   concatenated). This release clusters one curve type per run.

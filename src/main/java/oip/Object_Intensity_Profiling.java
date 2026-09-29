@@ -51,6 +51,7 @@ import oip.texture.ZernikeMoments;
 
 import java.awt.GraphicsEnvironment;
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -119,9 +120,10 @@ public final class Object_Intensity_Profiling implements PlugIn {
 
     private void runOpenImagesInteractive() {
         int[] ids = WindowManager.getIDList();
-        if (ids == null || ids.length < 2) {
+        if (ids == null || ids.length < 1) {
             IJ.error("Object Intensity Profiling",
-                    "Open one label image and at least one matching raw image first.");
+                    "Open one label image (or use an ROI set) and at least one matching raw "
+                            + "image first.");
             return;
         }
         String[] titles = new String[ids.length];
@@ -132,8 +134,12 @@ public final class Object_Intensity_Profiling implements PlugIn {
         System.arraycopy(titles, 0, optional, 1, titles.length);
 
         GenericDialog dialog = new GenericDialog("Object Intensity Profiling");
-        dialog.addMessage("The label image defines objects. Choose the raw correlation reference.");
+        dialog.addMessage("The label image or ROI set defines objects. "
+                + "Choose the raw correlation reference.");
+        dialog.addChoice("Objects from", OBJECT_SOURCES, OBJECT_SOURCES[0]);
         dialog.addChoice("Label image", titles, titles[0]);
+        dialog.addFileField("Object ROI set", "");
+        dialog.addFileField("Region ROI set (optional)", "");
         dialog.addChoice("Raw 1", titles, titles[Math.min(1, titles.length - 1)]);
         dialog.addChoice("Raw 2", optional, optional[0]);
         dialog.addChoice("Raw 3", optional, optional[0]);
@@ -190,7 +196,23 @@ public final class Object_Intensity_Profiling implements PlugIn {
         if (dialog.wasCanceled()) return;
 
         OipMacroOptions options = new OipMacroOptions();
-        options.labelsTitle = titles[dialog.getNextChoiceIndex()];
+        boolean fromRois = dialog.getNextChoiceIndex() == 1;
+        String labelTitle = titles[dialog.getNextChoiceIndex()];
+        String objectRois = dialog.getNextString().trim();
+        String regionRois = dialog.getNextString().trim();
+        if (fromRois) {
+            if (objectRois.length() == 0) {
+                throw new IllegalArgumentException("Choose the object ROI set file.");
+            }
+            options.objectsRoi = objectRois;
+        } else {
+            if (ids.length < 2) {
+                throw new IllegalArgumentException(
+                        "Open one label image and at least one matching raw image first.");
+            }
+            options.labelsTitle = labelTitle;
+        }
+        if (regionRois.length() > 0) options.regionRoi = regionRois;
         for (int i = 0; i < 4; i++) {
             String choice = i == 0
                     ? titles[dialog.getNextChoiceIndex()]
@@ -409,6 +431,8 @@ public final class Object_Intensity_Profiling implements PlugIn {
         return text.toString();
     }
 
+    private static final String[] OBJECT_SOURCES = {"Label image", "ROI set file"};
+
     private static final String[] PROFILE_CLASS_CURVES = {
         "Radial", "Shell", "Angular", "Principal major", "Marginal X", "Marginal Y"
     };
@@ -507,7 +531,9 @@ public final class Object_Intensity_Profiling implements PlugIn {
         options.validateQuantizationSlots();
         List<ImagePlus> opened = new ArrayList<ImagePlus>();
         try {
-            ImagePlus labels = resolve(options.labelsTitle, options.labelsPath, "label", opened);
+            boolean fromRois = OipMacroOptions.hasText(options.objectsRoi);
+            ImagePlus labels = fromRois ? null
+                    : resolve(options.labelsTitle, options.labelsPath, "label", opened);
             Map<String, ImagePlus> raw = new LinkedHashMap<String, ImagePlus>();
             Map<String, QuantizationRange> ranges =
                     new LinkedHashMap<String, QuantizationRange>();
@@ -526,6 +552,10 @@ public final class Object_Intensity_Profiling implements PlugIn {
                 if (range != null) ranges.put(name, range);
             }
 
+            if (fromRois) {
+                // The first raw image supplies the dimensions and calibration of the ROI labels.
+                labels = roiLabels(raw.values().iterator().next(), options.objectsRoi);
+            }
             String reference = OipMacroOptions.hasText(options.referenceChannel)
                     ? options.referenceChannel
                     : raw.size() == 1 ? raw.keySet().iterator().next() : null;
@@ -551,6 +581,10 @@ public final class Object_Intensity_Profiling implements PlugIn {
                     });
             for (Map.Entry<String, QuantizationRange> range : ranges.entrySet()) {
                 builder.quantizationRange(range.getKey(), range.getValue());
+            }
+            if (OipMacroOptions.hasText(options.regionRoi)) {
+                builder.regionRois(regionRois(options.regionRoi),
+                        new File(options.regionRoi).getName());
             }
             if (options.autoSave) builder.autoSave(new File(options.outputDirectory));
             IJ.resetEscape();
@@ -590,6 +624,24 @@ public final class Object_Intensity_Profiling implements PlugIn {
         }
         return ObjectProfileFigureWriter.createFigures(
                 aggregate, null, result.getParameters().getCancellationToken());
+    }
+
+    private static ImagePlus roiLabels(ImagePlus reference, String path) {
+        try {
+            return OipRoiInputs.labelsFromRoiSet(reference, path);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Could not read the object ROI set " + path
+                    + ": " + e.getMessage(), e);
+        }
+    }
+
+    private static ij.gui.Roi[] regionRois(String path) {
+        try {
+            return OipRoiInputs.regionRois(path);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Could not read the region ROI set " + path
+                    + ": " + e.getMessage(), e);
+        }
     }
 
     private static ImagePlus resolve(String title, String path, String role,

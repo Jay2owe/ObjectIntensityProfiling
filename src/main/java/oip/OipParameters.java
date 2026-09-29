@@ -33,6 +33,7 @@
 package oip;
 
 import ij.ImagePlus;
+import ij.gui.Roi;
 import oip.profile.OipConfig;
 import oip.texture.QuantizationRange;
 
@@ -79,6 +80,8 @@ public final class OipParameters {
     private final File outputDirectory;
     private final ProgressListener progressListener;
     private final CancellationToken cancellationToken;
+    private final Roi[] regionRois;
+    private final String regionSource;
 
     private OipParameters(Builder builder) {
         labelImage = builder.labelImage;
@@ -99,6 +102,8 @@ public final class OipParameters {
         outputDirectory = builder.outputDirectory;
         progressListener = builder.progressListener == null ? NO_PROGRESS : builder.progressListener;
         cancellationToken = builder.cancellationToken == null ? NEVER_CANCELLED : builder.cancellationToken;
+        regionRois = builder.regionRois == null ? null : builder.regionRois.clone();
+        regionSource = clean(builder.regionSource);
     }
 
     public static Builder builder(ImagePlus labelImage) {
@@ -123,7 +128,19 @@ public final class OipParameters {
         builder.outputDirectory = outputDirectory;
         builder.progressListener = progressListener;
         builder.cancellationToken = cancellationToken;
+        builder.regionRois = regionRois == null ? null : regionRois.clone();
+        builder.regionSource = regionSource;
         return builder;
+    }
+
+    /** Region ROIs restricting which objects are profiled, or null for every object. */
+    public Roi[] getRegionRois() {
+        return regionRois == null ? null : regionRois.clone();
+    }
+
+    /** Where the region ROIs came from (a file name), for messages; may be null. */
+    public String getRegionSource() {
+        return regionSource;
     }
 
     public ImagePlus getLabelImage() {
@@ -194,6 +211,8 @@ public final class OipParameters {
         private File outputDirectory;
         private ProgressListener progressListener;
         private CancellationToken cancellationToken;
+        private Roi[] regionRois;
+        private String regionSource;
 
         private Builder(ImagePlus labelImage) {
             this.labelImage = labelImage;
@@ -265,6 +284,21 @@ public final class OipParameters {
 
         public Builder cancellationToken(CancellationToken cancellationToken) {
             this.cancellationToken = cancellationToken;
+            return this;
+        }
+
+        /**
+         * Profile only objects whose centroid lies inside the union of these area ROIs. An ROI
+         * with a Z position applies to that slice only. Null profiles every object.
+         */
+        public Builder regionRois(Roi[] rois) {
+            return regionRois(rois, null);
+        }
+
+        /** As {@link #regionRois(Roi[])}, naming the ROI source in error messages. */
+        public Builder regionRois(Roi[] rois, String source) {
+            this.regionRois = rois == null ? null : rois.clone();
+            this.regionSource = source;
             return this;
         }
 

@@ -44,6 +44,14 @@ import oip.ObjectIntensityProfiling;
 import oip.OipBatchParameters;
 import oip.OipBatchRunner;
 import oip.OipParameters;
+import oip.OipRoiInputs;
+import ij.gui.OvalRoi;
+import ij.gui.PolygonRoi;
+import ij.gui.Roi;
+import ij.io.RoiEncoder;
+import java.io.FileOutputStream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import oip.profile.OipConfig;
 import oip.profile.ProfileShapeClassifier;
 import oip.texture.QuantizationRange;
@@ -336,6 +344,54 @@ final class GoldenCases {
                         .saveClassMaps(false)
                         .build();
                 OipBatchRunner.run(parameters);
+            }
+        }));
+
+        cases.add(new Case("2d-roi-set-objects", new Runner() {
+            @Override
+            public void run(File output, File scratch) throws IOException {
+                File set = new File(scratch, "cells.zip");
+                ZipOutputStream zip = new ZipOutputStream(new FileOutputStream(set));
+                try {
+                    Roi[] rois = {
+                        new OvalRoi(8, 8, 20, 16), new Roi(40, 10, 18, 12),
+                        new OvalRoi(20, 40, 24, 24), new PolygonRoi(
+                                new int[] {50, 70, 66, 48}, new int[] {45, 50, 70, 64}, 4,
+                                Roi.POLYGON),
+                        new Roi(24, 44, 10, 10)
+                    };
+                    for (int i = 0; i < rois.length; i++) {
+                        zip.putNextEntry(new ZipEntry(String.format("%04d.roi", i + 1)));
+                        zip.write(RoiEncoder.saveAsByteArray(rois[i]));
+                        zip.closeEntry();
+                    }
+                } finally {
+                    zip.close();
+                }
+                Scene scene = scene2d(80, 80, 6, 23L);
+                ImagePlus raw = scene.raw("r", 1901L, Pattern.GRADIENT_X);
+                ImagePlus labels = OipRoiInputs.labelsFromRoiSet(raw, set.getPath());
+                ObjectIntensityProfiling.run(OipParameters.builder(labels)
+                        .addRawImage("R", raw)
+                        .addRawImage("N", scene.raw("n", 1902L, Pattern.NOISE))
+                        .referenceChannel("R")
+                        .saveFigures(false)
+                        .autoSave(output)
+                        .build());
+            }
+        }));
+
+        cases.add(single("3d-region-roi-restricted", new SingleSpec() {
+            @Override
+            OipParameters.Builder build() {
+                Scene scene = scene3d(64, 64, 8, 9, 24L);
+                Roi positioned = new Roi(30, 30, 34, 34);
+                positioned.setPosition(0, 4, 0);
+                return OipParameters.builder(scene.labels(16, "labels-region"))
+                        .addRawImage("C", scene.raw("c", 2001L, Pattern.CENTRE))
+                        .regionRois(new Roi[] {new OvalRoi(0, 0, 36, 36), positioned},
+                                "region.zip")
+                        .config(new OipConfig());
             }
         }));
         return cases;

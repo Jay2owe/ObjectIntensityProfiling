@@ -67,6 +67,11 @@ public class PackagingIT {
                     "oip/internal/core/io/RegexGroupDiscovery.class"));
             assertTrue(jar.getJarEntry(
                     "sc/fiji/oc3d/core/io/RegexGroupDiscovery.class") == null);
+            assertNotNull("ROI inputs need the shaded ROI conversion", jar.getJarEntry(
+                    "oip/internal/core/ingest/RoiLabelImages.class"));
+            assertNotNull(jar.getJarEntry("oip/internal/core/ingest/LabelUtils.class"));
+            assertTrue(jar.getJarEntry(
+                    "sc/fiji/oc3d/core/ingest/RoiLabelImages.class") == null);
             assertTrue(jar.getJarEntry("ij/IJ.class") == null);
             assertNotNull(jar.getJarEntry("plugins.config"));
             assertNotNull(jar.getJarEntry("oip/Object_Intensity_Profiling.class"));

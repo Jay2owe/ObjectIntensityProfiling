@@ -83,7 +83,7 @@ public class ObjectIntensityProfilingTest {
             new Object_Intensity_Profiling().execute(null, true);
             fail("expected an IllegalArgumentException");
         } catch (IllegalArgumentException expected) {
-            assertEquals("labels or labels_path is required.", expected.getMessage());
+            assertEquals("labels, labels_path or objects_roi is required.", expected.getMessage());
         }
     }
 

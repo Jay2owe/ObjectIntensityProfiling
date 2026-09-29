@@ -91,6 +91,16 @@ public final class ObjectIntensityProfiling {
         if (objects.isEmpty()) {
             throw new IllegalArgumentException("The label image contains no positive object labels.");
         }
+        if (parameters.getRegionRois() != null) {
+            int before = objects.size();
+            objects = OipRoiInputs.insideRegion(objects, parameters.getRegionRois());
+            if (objects.isEmpty()) {
+                String source = parameters.getRegionSource();
+                throw new IllegalArgumentException("None of the " + before + " objects has its "
+                        + "centroid inside the region ROI set"
+                        + (source == null ? "" : " " + source) + ".");
+            }
+        }
         checkCancelled(parameters);
 
         progress(parameters, 0.12, "Computing intensity profiles");
@@ -251,6 +261,10 @@ public final class ObjectIntensityProfiling {
             throw new IllegalArgumentException("Enable at least one profile or texture measurement.");
         }
         ProfileShapeClassifier.validate(config);
+        if (parameters.getRegionRois() != null) {
+            OipRoiInputs.validateRegion(parameters.getRegionRois(), labels.getNSlices(),
+                    parameters.getRegionSource());
+        }
         if (parameters.isAutoSave() && parameters.getOutputDirectory() == null) {
             throw new IllegalArgumentException("An output directory is required when auto-save is enabled.");
         }

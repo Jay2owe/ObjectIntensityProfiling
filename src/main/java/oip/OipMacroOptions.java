@@ -44,6 +44,10 @@ import java.util.List;
 final class OipMacroOptions {
     String labelsTitle;
     String labelsPath;
+    /** ROI set defining the objects, instead of a label image. */
+    String objectsRoi;
+    /** ROI set restricting profiling to objects whose centroid lies inside it. */
+    String regionRoi;
     String sourceName;
     final String[] rawTitles = new String[4];
     final String[] rawPaths = new String[4];
@@ -63,6 +67,8 @@ final class OipMacroOptions {
         List<String> tokens = new ArrayList<String>();
         append(tokens, "labels", labelsTitle);
         append(tokens, "labels_path", labelsPath);
+        append(tokens, "objects_roi", objectsRoi);
+        append(tokens, "region_roi", regionRoi);
         append(tokens, "source_name", sourceName);
         for (int i = 0; i < rawTitles.length; i++) {
             append(tokens, "raw" + (i + 1), rawTitles[i]);

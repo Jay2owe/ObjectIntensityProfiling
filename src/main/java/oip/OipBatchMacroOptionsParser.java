@@ -73,7 +73,11 @@ final class OipBatchMacroOptionsParser {
         else if ("reference".equals(key)) o.referenceChannel = value;
         // save_dir is accepted as an alias for output, as in single-image mode.
         else if ("output".equals(key) || "save_dir".equals(key)) o.outputDirectory = value;
-        else if ("source_name".equals(key)) {
+        else if ("objects_roi".equals(key) || "region_roi".equals(key)) {
+            throw new IllegalArgumentException(key + " is available for single images only in "
+                    + "this version; run each image separately or convert the ROI sets to label "
+                    + "images first.");
+        } else if ("source_name".equals(key)) {
             throw new IllegalArgumentException("source_name is not used in batch mode: "
                     + "every sample is named by capture group 1 of labels_regex.");
         } else {

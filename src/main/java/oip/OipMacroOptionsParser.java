@@ -95,6 +95,8 @@ final class OipMacroOptionsParser {
         if (OipConfigOptions.applyValue(o.config, key, value)) return;
         if ("labels".equals(key)) o.labelsTitle = value;
         else if ("labels_path".equals(key)) o.labelsPath = value;
+        else if ("objects_roi".equals(key)) o.objectsRoi = value;
+        else if ("region_roi".equals(key)) o.regionRoi = value;
         else if ("source_name".equals(key)) o.sourceName = value;
         else if ("reference".equals(key)) o.referenceChannel = value;
         else if ("output".equals(key) || "save_dir".equals(key)) {
@@ -136,11 +138,15 @@ final class OipMacroOptionsParser {
 
     private static void validate(OipMacroOptions o) {
         OipConfigOptions.validate(o.config);
-        if (OipMacroOptions.hasText(o.labelsTitle) && OipMacroOptions.hasText(o.labelsPath)) {
-            throw new IllegalArgumentException("Use labels or labels_path, not both.");
+        int labelSources = (OipMacroOptions.hasText(o.labelsTitle) ? 1 : 0)
+                + (OipMacroOptions.hasText(o.labelsPath) ? 1 : 0)
+                + (OipMacroOptions.hasText(o.objectsRoi) ? 1 : 0);
+        if (labelSources > 1) {
+            throw new IllegalArgumentException(
+                    "Use only one of labels, labels_path and objects_roi to define the objects.");
         }
-        if (!OipMacroOptions.hasText(o.labelsTitle) && !OipMacroOptions.hasText(o.labelsPath)) {
-            throw new IllegalArgumentException("labels or labels_path is required.");
+        if (labelSources == 0) {
+            throw new IllegalArgumentException("labels, labels_path or objects_roi is required.");
         }
         int rawCount = 0;
         for (int i = 0; i < 4; i++) {
