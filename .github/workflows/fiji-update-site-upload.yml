@@ -1,0 +1,294 @@
+name: Upload To Fiji Update Site
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Simulate the updater upload without changing the update site"
+        required: true
+        type: boolean
+        default: true
+      clear_stale_lock:
+        description: "Delete db.xml.gz.lock before upload using the WebDAV credentials"
+        required: true
+        type: boolean
+        default: false
+      confirm_live_upload:
+        description: "Required when dry_run=false: type UPLOAD Object-Intensity-Profiling"
+        required: false
+        type: string
+        default: ""
+
+concurrency:
+  group: object-intensity-profiling-update-site-upload
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  upload:
+    name: Build and upload
+    runs-on: ubuntu-latest
+    environment: fiji-update-site
+
+    env:
+      FIJI_DOWNLOAD_URL: "https://downloads.imagej.net/fiji/latest/fiji-latest-linux64-jdk.zip"
+      IMAGEJ_UPDATE_SITE_NAME: "Object-Intensity-Profiling"
+      IMAGEJ_UPDATE_SITE_URL: "https://sites.imagej.net/Object-Intensity-Profiling/"
+      GH_TOKEN: ${{ github.token }}
+      # Pinned to the GitHub Release: the upload uses that exact jar, not a fresh build.
+      RELEASE_TAG: "v0.3.0"
+      RELEASE_COMMIT: ""
+      RELEASE_SHA256: ""
+      OC3D_CORE_REPO: "Jay2owe/oc3d-core"
+      OC3D_CORE_REF: "v0.1.0"
+      IMAGEJ_UPLOAD_USER: ${{ secrets.IMAGEJ_UPLOAD_USER }}
+      IMAGEJ_UPLOAD_PASSWORD: ${{ secrets.IMAGEJ_UPLOAD_PASSWORD }}
+      DEFAULT_UPLOAD_USER: ""
+      ARTIFACT_GLOB: "release-artifact/Object_Intensity_Profiling-0.3.0.jar"
+      INSTALL_DIR: "plugins"
+      ARTIFACT_NAME: ""
+      REPLACE_GLOB: "plugins/Object_Intensity_Profiling-*.jar"
+      UPLOAD_MODE: "single-file"
+      LIVE_UPLOAD_CONFIRMATION: "UPLOAD Object-Intensity-Profiling"
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+      CLEAR_STALE_LOCK: ${{ github.event_name == 'workflow_dispatch' && inputs.clear_stale_lock || 'false' }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Check out oc3d-core
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ env.OC3D_CORE_REPO }}
+          ref: ${{ env.OC3D_CORE_REF }}
+          path: oc3d-core
+
+      - name: Set default upload user
+        shell: bash
+        run: |
+          if [ -z "$IMAGEJ_UPLOAD_USER" ] && [ -n "$DEFAULT_UPLOAD_USER" ]; then
+            echo "IMAGEJ_UPLOAD_USER=$DEFAULT_UPLOAD_USER" >> "$GITHUB_ENV"
+          fi
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: "temurin"
+          java-version: "21"
+          cache: maven
+
+      - name: Validate secrets
+        shell: bash
+        run: |
+          test -n "$IMAGEJ_UPLOAD_USER" || {
+            echo "Missing upload user. Set IMAGEJ_UPLOAD_USER, or regenerate with --default-upload-user."
+            exit 1
+          }
+          test -n "$IMAGEJ_UPLOAD_PASSWORD" || {
+            echo "Missing repository secret: IMAGEJ_UPLOAD_PASSWORD"
+            exit 1
+          }
+
+      - name: Require release pins
+        shell: bash
+        run: |
+          if [ -z "$RELEASE_COMMIT" ] || [ -z "$RELEASE_SHA256" ]; then
+            echo "RELEASE_COMMIT and RELEASE_SHA256 must be filled in from the GitHub Release first."
+            exit 1
+          fi
+
+      - name: Require live upload confirmation
+        shell: bash
+        run: |
+          if [ "$DRY_RUN" != "true" ] && [ "${{ inputs.confirm_live_upload }}" != "$LIVE_UPLOAD_CONFIRMATION" ]; then
+            echo "Live update-site upload blocked. Re-run with confirm_live_upload set to: $LIVE_UPLOAD_CONFIRMATION"
+            exit 1
+          fi
+
+      - name: Build fixed core dependency
+        shell: bash
+        run: |
+          chmod +x ./mvnw
+          ./mvnw --batch-mode --no-transfer-progress -f oc3d-core/pom.xml clean install
+
+      - name: Build and verify plugin artifact
+        shell: bash
+        run: ./mvnw --batch-mode --no-transfer-progress clean verify
+
+      - name: Download canonical GitHub Release artifact
+        shell: bash
+        run: |
+          mkdir -p release-artifact
+          gh release download "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern "Object_Intensity_Profiling-0.3.0.jar" \
+            --dir release-artifact
+
+      - name: Verify canonical release artifact
+        shell: bash
+        run: |
+          JAR="release-artifact/Object_Intensity_Profiling-0.3.0.jar"
+          test -f "$JAR"
+          python - "$JAR" "$RELEASE_SHA256" "$RELEASE_COMMIT" <<'PY'
+          import hashlib
+          import sys
+          import zipfile
+          from pathlib import Path
+
+          path = Path(sys.argv[1])
+          expected_hash = sys.argv[2].upper()
+          expected_commit = sys.argv[3]
+          actual_hash = hashlib.sha256(path.read_bytes()).hexdigest().upper()
+          if actual_hash != expected_hash:
+              raise SystemExit(
+                  f"Canonical release SHA-256 mismatch: {actual_hash}")
+
+          with zipfile.ZipFile(path) as archive:
+              entries = set(archive.namelist())
+              required = {
+                  "META-INF/MANIFEST.MF",
+                  "plugins.config",
+                  "oip/Object_Intensity_Profiling.class",
+              }
+              missing = sorted(required - entries)
+              if missing:
+                  raise SystemExit(f"Canonical release entries missing: {missing}")
+              if any(name.startswith("sc/fiji/") for name in entries):
+                  raise SystemExit(
+                      "Canonical release contains unrelocated sc/fiji classes")
+              if any(name.startswith("ij/") for name in entries):
+                  raise SystemExit("Canonical release bundles ImageJ classes")
+              manifest = archive.read("META-INF/MANIFEST.MF").decode("UTF-8")
+
+          if f"Implementation-Build: {expected_commit}\r\n" not in manifest:
+              raise SystemExit("Canonical release has the wrong source commit")
+          if "\nClass-Path:" in manifest:
+              raise SystemExit(
+                  "Canonical release declares external class-path jars")
+          print(f"Canonical release SHA-256 verified: {actual_hash}")
+          PY
+
+          BUILT="target/Object_Intensity_Profiling-0.3.0.jar"
+          echo "Fresh verification build: $(sha256sum "$BUILT")"
+
+      - name: Download Fiji
+        shell: bash
+        run: |
+          curl -fsSL "$FIJI_DOWNLOAD_URL" -o fiji-linux64.zip
+          unzip -q fiji-linux64.zip
+          FIJI_DIR="$(find . -maxdepth 5 -type f \( -name "ImageJ*linux64*" -o -name "ImageJ2*linux64*" -o -name "fiji-linux-x64" \) -printf "%h\n" | head -n 1)"
+          if [ -z "$FIJI_DIR" ]; then
+            FIJI_DIR="$(find . -maxdepth 4 -type d -name "*.app" -print -quit)"
+          fi
+          if [ -z "$FIJI_DIR" ]; then
+            echo "Could not locate extracted Fiji/ImageJ directory."
+            unzip -Z1 fiji-linux64.zip | head -n 80
+            exit 1
+          fi
+          if [ "$FIJI_DIR" != "./Fiji.app" ]; then
+            mv "$FIJI_DIR" ./Fiji.app
+          fi
+          FIJI_LAUNCHER="$(find Fiji.app -maxdepth 2 -type f \( -name "ImageJ*linux64*" -o -name "ImageJ2*linux64*" -o -name "fiji-linux-x64" \) -print -quit)"
+          test -n "$FIJI_LAUNCHER" || {
+            echo "Could not locate the Fiji Linux launcher."
+            find Fiji.app -maxdepth 2 -type f | sort | head -n 80
+            exit 1
+          }
+          chmod +x "$FIJI_LAUNCHER"
+          echo "FIJI_LAUNCHER=$FIJI_LAUNCHER" >> "$GITHUB_ENV"
+          find Fiji.app -maxdepth 2 -type f \( -name "ImageJ*linux64*" -o -name "ImageJ2*linux64*" -o -name "fiji-linux-x64" \) -print
+
+      - name: Check or clear remote lock
+        shell: bash
+        run: |
+          lock_url="${IMAGEJ_UPDATE_SITE_URL%/}/db.xml.gz.lock"
+          status="$(curl -L -s -o /dev/null -w "%{http_code}" -I "$lock_url" || true)"
+          if [ "$status" = "404" ]; then
+            echo "No remote lock exists at $lock_url"
+            exit 0
+          fi
+          if [ "$status" != "200" ]; then
+            echo "Unexpected status for $lock_url: HTTP $status"
+            exit 1
+          fi
+          if [ "$CLEAR_STALE_LOCK" != "true" ]; then
+            echo "Remote lock exists at $lock_url. Rerun with clear_stale_lock=true only if you are sure no upload is active."
+            exit 1
+          fi
+          delete_status="$(curl -L -s -o /dev/null -w "%{http_code}" -u "$IMAGEJ_UPLOAD_USER:$IMAGEJ_UPLOAD_PASSWORD" -X DELETE "$lock_url" || true)"
+          if [ "$delete_status" != "200" ] && [ "$delete_status" != "204" ] && [ "$delete_status" != "404" ]; then
+            echo "Could not delete remote lock. HTTP $delete_status"
+            exit 1
+          fi
+          echo "Remote lock cleared or absent."
+
+      - name: Stage artifact into Fiji
+        shell: bash
+        run: |
+          mapfile -t artifacts < <(compgen -G "$ARTIFACT_GLOB" | grep -Ev '(-sources|-tests)\.jar$' || true)
+          if [ "${#artifacts[@]}" -ne 1 ]; then
+            printf 'Expected exactly one uploadable artifact for %s, found %s\n' "$ARTIFACT_GLOB" "${#artifacts[@]}"
+            printf '%s\n' "${artifacts[@]}"
+            exit 1
+          fi
+
+          artifact="${artifacts[0]}"
+          if [ -n "$REPLACE_GLOB" ]; then
+            mapfile -t old_files < <(compgen -G "Fiji.app/$REPLACE_GLOB" || true)
+            for old_file in "${old_files[@]}"; do
+              rm -f "$old_file"
+            done
+          fi
+
+          install_name="$ARTIFACT_NAME"
+          if [ -z "$install_name" ]; then
+            install_name="$(basename "$artifact")"
+          fi
+          mkdir -p "Fiji.app/$INSTALL_DIR"
+          cp "$artifact" "Fiji.app/$INSTALL_DIR/$install_name"
+          echo "RELATIVE_TARGET=$INSTALL_DIR/$install_name" >> "$GITHUB_ENV"
+          find Fiji.app/plugins Fiji.app/jars Fiji.app/scripts -maxdepth 2 -type f 2>/dev/null | sort
+
+      - name: Configure update site metadata
+        shell: bash
+        run: |
+          "$FIJI_LAUNCHER" --update edit-update-site "$IMAGEJ_UPDATE_SITE_NAME" "$IMAGEJ_UPDATE_SITE_URL" "webdav:$IMAGEJ_UPLOAD_USER:$IMAGEJ_UPLOAD_PASSWORD" .
+          "$FIJI_LAUNCHER" --update update
+
+      - name: Upload to Fiji update site
+        shell: bash
+        run: |
+          if [ "$UPLOAD_MODE" = "single-file" ]; then
+            if [ "$DRY_RUN" = "true" ]; then
+              upload_args=(--update upload --simulate --update-site "$IMAGEJ_UPDATE_SITE_NAME" --force-shadow --forget-missing-dependencies "$RELATIVE_TARGET")
+              echo "Running simulated upload for $RELATIVE_TARGET"
+            else
+              upload_args=(--update upload --update-site "$IMAGEJ_UPDATE_SITE_NAME" --force-shadow --forget-missing-dependencies "$RELATIVE_TARGET")
+              echo "Uploading $RELATIVE_TARGET to $IMAGEJ_UPDATE_SITE_NAME"
+            fi
+          else
+            if [ "$DRY_RUN" = "true" ]; then
+              upload_args=(--update upload-complete-site --simulate --force --force-shadow "$IMAGEJ_UPDATE_SITE_NAME")
+              echo "Running simulated complete-site upload"
+            else
+              upload_args=(--update upload-complete-site --force --force-shadow "$IMAGEJ_UPDATE_SITE_NAME")
+              echo "Running complete-site upload to $IMAGEJ_UPDATE_SITE_NAME"
+            fi
+          fi
+          "$FIJI_LAUNCHER" "${upload_args[@]}"
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "Dry run complete. No files were uploaded."
+          else
+            echo "Upload complete."
+          fi
+
+      - name: Archive canonical release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: object-intensity-profiling-uploaded-artifact
+          path: |
+            release-artifact/Object_Intensity_Profiling-0.3.0.jar
+          if-no-files-found: error

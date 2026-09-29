@@ -47,6 +47,7 @@ import java.util.jar.JarFile;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class PackagingIT {
@@ -78,6 +79,10 @@ public class PackagingIT {
             assertArrayEquals(
                     Files.readAllBytes(new File(project, "LICENSE").toPath()),
                     read(jar, "META-INF/LICENSE"));
+            // The core is shaded, so the manifest must not send Fiji looking for
+            // ij-*.jar or oc3d-core-*.jar next to the plugin.
+            assertNull("manifest must not declare Class-Path jars",
+                    jar.getManifest().getMainAttributes().getValue("Class-Path"));
         } finally {
             jar.close();
         }
