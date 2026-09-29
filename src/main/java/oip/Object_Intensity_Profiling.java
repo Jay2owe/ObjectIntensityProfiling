@@ -277,8 +277,9 @@ public final class Object_Intensity_Profiling implements PlugIn {
         }
     }
 
-    static final String DEFAULT_LABEL_REGEX = "(.*)_labels?\\.tif{1,2}";
-    static final String DEFAULT_RAW_REGEX = "(.*)_raw1\\.tif{1,2}";
+    /** Default patterns ignore case, so {@code .TIF} and {@code .tiff} exports are found too. */
+    static final String DEFAULT_LABEL_REGEX = "(?i)(.*)_labels?\\.tif{1,2}";
+    static final String DEFAULT_RAW_REGEX = "(?i)(.*)_raw1\\.tif{1,2}";
 
     /** The batch settings shown the first time: raw folders default to the label folder. */
     static OipBatchMacroOptions defaultBatchOptions(String labelDirectory) {

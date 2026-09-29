@@ -166,6 +166,31 @@ public class OipBatchRunnerTest {
         assertTrue(progress.toString(), progress.contains("Checking sample 2 of 2"));
     }
 
+    /**
+     * GUI check (0.3.0): the batch dialog's default patterns were case-sensitive, so a sample
+     * exported as {@code .TIF} (common on Windows) was silently left out of the batch.
+     */
+    @Test
+    public void defaultDialogPatternsFindUpperCaseTifSamples() throws Exception {
+        File labels = temporary.newFolder("case-labels");
+        File raw = temporary.newFolder("case-raw");
+        File output = temporary.newFolder("case-output");
+        save(new File(labels, "S1_labels.tif"), labels());
+        save(new File(raw, "S1_raw1.tif"), checker(10));
+        save(new File(labels, "S2_Labels.TIF"), labels());
+        save(new File(raw, "S2_raw1.TIFF"), checker(10));
+        OipBatchParameters parameters = OipBatchParameters.builder(
+                        labels, Object_Intensity_Profiling.DEFAULT_LABEL_REGEX, output)
+                .addRawChannel("Signal", raw, Object_Intensity_Profiling.DEFAULT_RAW_REGEX)
+                .saveFigures(false).build();
+
+        String preview = String.join("\n", OipBatchRunner.prepare(parameters).previewLines());
+
+        assertTrue(preview, preview.contains("S1: S1_labels.tif"));
+        assertTrue(preview, preview.contains("S2: S2_Labels.TIF"));
+        assertTrue(preview, preview.contains("S2_raw1.TIFF"));
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void preparedBatchIsTiedToItsParameters() throws Exception {
         File labels = temporary.newFolder("tie-labels");
