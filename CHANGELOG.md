@@ -3,6 +3,38 @@
 All notable changes to Object Intensity Profiling are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 0.3.1 - unreleased
+
+Found by the first run of the dialogs in a real (non-headless) Fiji and by a review of the
+0.3.0 changes. Measurements and saved outputs are unchanged.
+
+### Fixed
+- The *Open images* and *Folder batch* dialogs were taller than a 1536 x 864 laptop screen
+  (1920 x 1080 at 125% scaling), so Windows clamped them: the label and raw image choices at
+  the top and the OK button at the bottom were cut off. The options are now laid out several
+  to a row, and a dialog that still does not fit (a smaller screen, or a larger ImageJ GUI
+  scale) scrolls its fields while the OK/Cancel row stays visible. The batch preview does the
+  same for long sample lists.
+- **Back** in the batch pairing preview ended the command instead of returning to the
+  settings. It now reopens the settings with every value as entered; the label folder is a
+  field of that dialog so it can be changed too.
+- The batch dialog's default file patterns were case-sensitive, so a sample exported as
+  `S3_labels.TIF` was silently left out of the batch. The defaults now ignore case
+  (`(?i)(.*)_labels?\.tif{1,2}`); patterns you type are used as written.
+- After Escape, the status-bar progress bar stayed part-filled.
+- An Escape pressed just after a run had finished saving could stop the display half way
+  (tables shown, plots missing, status "cancelled"). Displaying a finished run is no longer
+  cancellable.
+- Interactive runs with profile-shape classes now show the class-mean plots that auto-save
+  writes to `Figures/`.
+- The dialog accepted a Zernike degree or profile-class count outside the macro range while
+  that feature was off, and the recorded line then failed on replay. The dialog now applies
+  the same ranges as the macro options.
+
+### Documentation
+- A failing macro in a headless run stops with the one-line reason in the log, but Fiji exits
+  with code 0; the README no longer says the exit code reports it.
+
 ## 0.3.0 - 2026-09-29
 
 First release on the Fiji update site (`Object-Intensity-Profiling`). New measurements are

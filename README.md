@@ -229,8 +229,13 @@ than letting the last one win.
 
 When a macro fails (unknown option, missing image, wrong dimensions), the
 reason is written to the Log window as one line and shown in an error
-message. In a headless run (`--headless`) the same one-line reason is thrown
-so the run exits with an error, and results are saved but never displayed. Two
+message, and the macro stops at that line. In a headless run (`--headless`)
+there is no message window: the one-line reason goes to the log (the console)
+and the macro stops, but Fiji still exits with code 0, so a script that runs
+Fiji headless should check that its expected output files exist rather than
+rely on the exit code.
+Headless Java or script callers get the one-line reason as an exception.
+Results of a headless run are saved but never displayed. Two
 open images with the same title are rejected, because the recorded macro could
 not tell them apart: rename one first.
 
