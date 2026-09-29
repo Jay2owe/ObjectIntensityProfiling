@@ -39,8 +39,8 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       # Pinned to the GitHub Release: the upload uses that exact jar, not a fresh build.
       RELEASE_TAG: "v0.3.0"
-      RELEASE_COMMIT: ""
-      RELEASE_SHA256: ""
+      RELEASE_COMMIT: "8a218b26e6f1d4af7f295c7bc9a1c425d2db6fb3"
+      RELEASE_SHA256: "37C1025E6FFA49A15CBAC19FA1A431F61E555B23B607C509AAC7188A90F55A9A"
       OC3D_CORE_REPO: "Jay2owe/oc3d-core"
       OC3D_CORE_REF: "v0.1.0"
       IMAGEJ_UPLOAD_USER: ${{ secrets.IMAGEJ_UPLOAD_USER }}
