@@ -87,7 +87,7 @@ mvnw.cmd clean verify
 ```
 
 The plugin JAR is written to
-`target/Object_Intensity_Profiling-0.3.0.jar`.
+`target/Object_Intensity_Profiling-0.3.1.jar`.
 The reachable core classes are included under `oip.internal.core`; users copy
 only the plugin JAR into Fiji and do not install the core separately.
 
@@ -553,7 +553,7 @@ java -cp "target/Object_Intensity_Profiling-<version>.jar;target/test-classes;<p
 
 If you use Object Intensity Profiling, please cite it (see also `CITATION.cff`):
 
-Malcolm, J. (2026). *Object Intensity Profiling* (v0.3.0) [Software].
+Malcolm, J. (2026). *Object Intensity Profiling* (v0.3.1) [Software].
 GitHub. https://github.com/Jay2owe/ObjectIntensityProfiling
 
 ## Acknowledgements

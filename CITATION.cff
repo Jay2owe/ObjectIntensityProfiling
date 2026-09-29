@@ -16,7 +16,7 @@ authors:
 repository-code: "https://github.com/Jay2owe/ObjectIntensityProfiling"
 url: "https://github.com/Jay2owe/ObjectIntensityProfiling"
 license: BSD-3-Clause
-version: "0.3.0"
+version: "0.3.1"
 date-released: "2026-09-29"
 keywords:
   - imagej
