@@ -210,20 +210,25 @@ public class GoldenOutputTest {
     private static void write(Map<String, String> actual) throws IOException {
         Path file = Paths.get(basedir(), "src", "test", "resources", "oip", "golden", "digests.txt");
         List<String> changeLog = new ArrayList<String>();
+        String provenance = null;
         if (Files.isRegularFile(file)) {
             for (String line : Files.readAllLines(file, StandardCharsets.UTF_8)) {
                 if (line.startsWith("# change-log: ") && !line.contains("(append one line")) {
                     changeLog.add(line);
                 }
+                // Keep the baseline provenance so an update's diff shows only what changed.
+                if (line.startsWith("# source-commit: ")) provenance = line;
             }
         }
         String reason = System.getProperty("oip.golden.reason");
         if (reason != null && !reason.trim().isEmpty()) {
-            changeLog.add("# change-log: " + LocalDate.now() + " " + reason.trim());
+            changeLog.add("# change-log: " + LocalDate.now() + " " + reason.trim()
+                    + " (at " + sourceCommit() + ", jdk " + System.getProperty("java.version") + ")");
         }
         List<String> lines = new ArrayList<String>();
         lines.add("# Object Intensity Profiling golden output digests (SHA-256 of canonical dumps).");
-        lines.add("# source-commit: " + sourceCommit() + "  jdk: " + System.getProperty("java.version")
+        lines.add(provenance != null ? provenance
+                : "# source-commit: " + sourceCommit() + "  jdk: " + System.getProperty("java.version")
                 + "  date: " + LocalDate.now());
         lines.add("# Regenerate: sh ./mvnw -B test -Dtest=GoldenOutputTest -Doip.golden.update=true"
                 + " -Doip.golden.reason=\"stage NN: why\"");

@@ -144,6 +144,56 @@ public class ObjectIntensityProfilingTest {
     }
 
     @Test
+    public void zernikeTableIsWrittenOnlyWhenEnabledAndRemovedOnADisabledRerun() throws Exception {
+        File output = temporary.newFolder("zernike-out");
+        ImagePlus labels = SyntheticImages.image("labels", 24, 24, 1, new SyntheticImages.Pixel() {
+            @Override
+            public float value(int x, int y, int z) {
+                return (x - 11) * (x - 11) + (y - 11) * (y - 11) <= 64 ? 1 : 0;
+            }
+        });
+        ImagePlus raw = SyntheticImages.image("raw", 24, 24, 1, new SyntheticImages.Pixel() {
+            @Override
+            public float value(int x, int y, int z) {
+                return 5 + x;
+            }
+        });
+        File table = new File(output, "Profiles/Object_Zernike.csv");
+
+        ObjectIntensityProfiling.run(OipParameters.builder(labels).addRawImage("Signal", raw)
+                .saveFigures(false).autoSave(output).build());
+        assertFalse("disabled family must not write a table", table.exists());
+
+        OipConfig config = new OipConfig();
+        config.doZernike = true;
+        config.zernikeDegree = 3;
+        OipResult result = ObjectIntensityProfiling.run(OipParameters.builder(labels)
+                .addRawImage("Signal", raw).config(config)
+                .saveFigures(false).autoSave(output).build());
+        java.util.List<String> lines = java.nio.file.Files.readAllLines(table.toPath());
+        assertEquals("Source,Label,VoxelCount,Partner,N,M,Magnitude,Phase,ZernikeReliable",
+                lines.get(0));
+        assertEquals(1 + ZernikeMomentsCount.of(3), lines.size());
+        assertTrue(lines.get(1).startsWith("labels,1,"));
+        assertTrue(lines.get(1).contains(",0,0,1.0,"));
+        String texture = new String(java.nio.file.Files.readAllBytes(
+                new File(output, "Texture/Object_Texture.csv").toPath()), "UTF-8").trim();
+        assertEquals("Zernike alone adds no texture rows", 1, texture.split("\\R").length);
+        assertEquals(1, result.getTextures().size());
+
+        ObjectIntensityProfiling.run(OipParameters.builder(labels).addRawImage("Signal", raw)
+                .saveFigures(false).autoSave(output).build());
+        assertFalse("a rerun without Zernike removes the stale table", table.exists());
+    }
+
+    /** Keeps the expected row count readable. */
+    private static final class ZernikeMomentsCount {
+        static int of(int degree) {
+            return oip.texture.ZernikeMoments.momentCount(degree);
+        }
+    }
+
+    @Test
     public void batchPreviewSaysHowManySamplesWereOmitted() {
         String text = Object_Intensity_Profiling.previewText(
                 Arrays.asList("A: a.tif", "B: b.tif", "C: c.tif", "D: d.tif"), 20);

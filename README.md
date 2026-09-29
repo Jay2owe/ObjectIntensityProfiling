@@ -25,6 +25,8 @@ case-insensitive filesystem.
   homogeneity.
 - Optional eight-feature Gabor/wavelet texture classes using deterministic
   k-means clustering.
+- Optional intensity-weighted Zernike moments (magnitude and phase up to a
+  chosen degree) of each object's maximum-intensity projection.
 - Fixed GLCM quantisation per channel across a folder batch, with optional
   manual per-channel limits.
 - Per-object CSV files, object-weighted aggregate curves with standard error,
@@ -138,6 +140,8 @@ headless run. Manual GLCM limits use paired options such as
 | `glcm_levels`, `glcm_distance` | `32`, `1` | GLCM grey levels and pixel offset |
 | `texture_k` | `4` | Number of texture classes |
 | `minimum_texture_voxels` | `64` | Suppress texture below this object size |
+| `zernike` / `no_zernike` | disabled | Write Zernike moments to `Profiles/Object_Zernike.csv` |
+| `zernike_degree` | `9` | Highest Zernike order n, 1 to 20 (9 gives 30 moments) |
 | `quant_minN`, `quant_maxN` | automatic | Manual fixed GLCM range for raw channel N |
 | `save_figures` / `no_figures` | save | Save or suppress aggregate figures |
 | `save_maps` / `no_maps` | save | Save or suppress texture class maps |
@@ -330,6 +334,27 @@ all eight get equal say, so texture classes will partly track object size
 whenever sizes vary widely. Compare texture classes within a narrow size range,
 and treat a class that correlates with object size as an artefact until shown
 otherwise.
+
+Zernike moments (`zernike`) describe how each channel's signal is arranged
+around the object's centre. They are computed on the same mask-restricted
+maximum-intensity projection as the texture classes, so a 3D object is
+described by its projection (true 3D Zernike moments are planned for a later
+version). The unit disk is centred on the mask centroid with radius equal to
+the largest centroid-to-pixel distance plus half a pixel. For each order
+\(n = 0 \ldots\) `zernike_degree` and repetition \(m = n, n-2, \ldots \ge 0\),
+\(Z_{nm} = \sum I \, R_{nm}(\rho) \, e^{-im\theta}\) over the object's finite
+pixels; `Magnitude` is \(|Z_{nm}| / \sum I\) and `Phase` is
+\(\operatorname{atan2}(\operatorname{Im} Z_{nm}, \operatorname{Re} Z_{nm})\) in
+radians. Magnitude is dimensionless, so it does not change when intensity is
+scaled, and `(0,0)` is always 1. This differs from CellProfiler's
+*MeasureObjectIntensityDistribution*, which scales x and y by the minimum
+enclosing circle, divides the magnitude by the object's pixel count (so its
+magnitudes scale with intensity) and reports phase as `atan2(Re, Im)`; the
+numbers are therefore not interchangeable. Moments are blank when the object's
+total intensity is not positive, and `ZernikeReliable` is false when the disk
+radius is under 5 pixels. Objects below `minimum_texture_voxels` are still
+measured. On the square pixel grid even a perfect disk shows a small four-fold
+term (\(m = 4, 8\), below 0.01 at a 30-pixel radius).
 
 Two further reading notes. GLCM quantisation spans the whole batch, so one very
 bright image can push a dim object's voxels into a single grey level; the

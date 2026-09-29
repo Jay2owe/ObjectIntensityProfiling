@@ -44,6 +44,7 @@ import oip.profile.ProfileAggregator;
 import oip.texture.ObjectTextureAnalyzer;
 import oip.texture.ObjectTextureResult;
 import oip.texture.QuantizationRange;
+import oip.texture.ZernikeMoments;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -120,7 +121,7 @@ public final class ObjectIntensityProfiling {
         }
 
         List<ObjectTextureResult> textures = new ArrayList<ObjectTextureResult>();
-        if (config.doGlcm || config.doTextureClasses) {
+        if (config.anyTextureFamilyEnabled()) {
             progress(parameters, 0.60, "Computing texture measurements");
             textures = ObjectTextureAnalyzer.analyze(
                     parameters.getLabelImage(), parameters.getRawImages(),
@@ -232,7 +233,12 @@ public final class ObjectIntensityProfiling {
         if (config.region == null || config.intensityNorm == null) {
             throw new IllegalArgumentException("Sampling region and intensity normalisation are required.");
         }
-        if (!config.anyProfileEnabled() && !config.doGlcm && !config.doTextureClasses) {
+        if (config.doZernike && (config.zernikeDegree < 1
+                || config.zernikeDegree > ZernikeMoments.MAX_DEGREE)) {
+            throw new IllegalArgumentException("Zernike degree must be between 1 and "
+                    + ZernikeMoments.MAX_DEGREE + ".");
+        }
+        if (!config.anyProfileEnabled() && !config.anyTextureFamilyEnabled()) {
             throw new IllegalArgumentException("Enable at least one profile or texture measurement.");
         }
         if (parameters.isAutoSave() && parameters.getOutputDirectory() == null) {

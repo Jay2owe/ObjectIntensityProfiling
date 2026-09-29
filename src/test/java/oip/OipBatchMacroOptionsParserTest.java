@@ -54,8 +54,22 @@ public class OipBatchMacroOptionsParserTest {
         "no_correlation", "box", "glcm", "texture_classes", "intensity_norm=zscore",
         "radial_bins=9", "curve_bins=17", "angular_bins=8", "shells=5", "padding=12.5",
         "ring_threshold=40", "reference_threshold=2", "partner_threshold=3",
-        "glcm_levels=16", "glcm_distance=2", "texture_k=3", "minimum_texture_voxels=20"
+        "glcm_levels=16", "glcm_distance=2", "texture_k=3", "minimum_texture_voxels=20",
+        "zernike", "zernike_degree=4"
     };
+
+    @Test
+    public void zernikeOptionsAreAcceptedInBothModesAndRangeChecked() {
+        assertEquals(4, OipMacroOptionsParser.parse(SINGLE + "zernike zernike_degree=4")
+                .config.zernikeDegree);
+        assertTrue(OipBatchMacroOptionsParser.parse(BATCH + "zernike zernike_degree=4")
+                .config.doZernike);
+        assertRejected(SINGLE + "zernike zernike_degree=0",
+                "zernike_degree must be between 1 and 20; got: 0");
+        assertRejected(BATCH + "zernike zernike_degree=21",
+                "zernike_degree must be between 1 and 20; got: 21");
+        assertRejected(SINGLE + "zernike no_zernike", "zernike and no_zernike");
+    }
 
     @Test
     public void everyAnalysisOptionParsesIdenticallyInBothModes() {

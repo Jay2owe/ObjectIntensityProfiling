@@ -98,8 +98,18 @@ public final class OipConfig {
     public int textureClasses = 4;
     public int minimumTextureVoxels = 64;
 
+    /** Intensity-weighted 2D Zernike moments of each object's MIP (opt-in). */
+    public boolean doZernike = false;
+    /** Highest Zernike order n (1..20); 9 gives 30 moments. */
+    public int zernikeDegree = 9;
+
     public boolean anyProfileEnabled() {
         return doRadial || doMarginal || doPrincipalAxis || doAngular || doShell || doWithinBox;
+    }
+
+    /** True when any per-object texture-family job (GLCM, texture classes, Zernike) must run. */
+    public boolean anyTextureFamilyEnabled() {
+        return doGlcm || doTextureClasses || doZernike;
     }
 
     /** Defensive copy (the engine never mutates config, but callers may reuse and tweak one). */
@@ -127,6 +137,8 @@ public final class OipConfig {
         c.glcmDistance = glcmDistance;
         c.textureClasses = textureClasses;
         c.minimumTextureVoxels = minimumTextureVoxels;
+        c.doZernike = doZernike;
+        c.zernikeDegree = zernikeDegree;
         return c;
     }
 }

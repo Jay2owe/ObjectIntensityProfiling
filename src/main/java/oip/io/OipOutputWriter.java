@@ -43,6 +43,8 @@ import oip.profile.ProfileAggregator;
 import oip.texture.ObjectTextureFeatures;
 import oip.texture.ObjectTextureResult;
 import oip.texture.QuantizationRange;
+import oip.texture.ZernikeMoments;
+import oip.profile.OipConfig;
 
 import java.io.File;
 import java.io.IOException;
@@ -69,6 +71,10 @@ public final class OipOutputWriter {
         "Texture/Quantization_Ranges.csv",
         "Aggregate/Aggregate_Profiles.csv"
     };
+    /** Plugin-owned tables written only when their optional family is enabled. */
+    private static final String[] OPTIONAL_CSV_FILES = {
+        "Profiles/Object_Zernike.csv"
+    };
 
     private OipOutputWriter() {
     }
@@ -90,8 +96,15 @@ public final class OipOutputWriter {
 
         writeCurves(new File(profiles, "Per_Object_Profiles.csv"), result, cancellation);
         writeSummaries(new File(profiles, "Object_Summaries.csv"), result, cancellation);
+        OipConfig config = result.getParameters().getConfig();
+        // Zernike-only runs create texture jobs; Object_Texture.csv keeps its GLCM/class rows only.
         writeTextures(new File(texture, "Object_Texture.csv"),
-                result.getTextures(), cancellation);
+                config.doGlcm || config.doTextureClasses
+                        ? result.getTextures() : new ArrayList<ObjectTextureResult>(),
+                cancellation);
+        if (config.doZernike) {
+            writeZernike(new File(profiles, "Object_Zernike.csv"), result, cancellation);
+        }
         writeRanges(new File(texture, "Quantization_Ranges.csv"),
                 result.getQuantizationRanges(), cancellation);
         writeAggregate(new File(aggregate, "Aggregate_Profiles.csv"), result, cancellation);
@@ -264,6 +277,32 @@ public final class OipOutputWriter {
                             + CsvSupport.number(partner.withinBoxOverlap) + ","
                             + CsvSupport.number(partner.mandersM1) + ","
                             + CsvSupport.number(partner.mandersM2));
+                }
+            }
+        } finally {
+            close(pending);
+        }
+    }
+
+    private static void writeZernike(File file, OipResult result,
+                                     OipParameters.CancellationToken cancellation)
+            throws IOException {
+        PendingCsv pending = writer(file);
+        PrintWriter writer = pending.writer;
+        try {
+            writer.println("Source,Label,VoxelCount,Partner,N,M,Magnitude,Phase,ZernikeReliable");
+            String source = CsvSupport.field(result.getParameters().getSourceName());
+            for (ObjectTextureResult texture : result.getTextures()) {
+                checkCancelled(cancellation);
+                ZernikeMoments.Result moments = texture.zernike;
+                if (moments == null) continue;
+                for (int i = 0; i < moments.size(); i++) {
+                    writer.println(source + "," + texture.label + "," + texture.voxelCount + ","
+                            + CsvSupport.field(texture.partnerChannel) + ","
+                            + moments.n[i] + "," + moments.m[i] + ","
+                            + CsvSupport.number(moments.magnitude[i]) + ","
+                            + CsvSupport.number(moments.phase[i]) + ","
+                            + (moments.valid && moments.reliable));
                 }
             }
         } finally {
@@ -561,6 +600,10 @@ public final class OipOutputWriter {
                 validateRegularIfPresent(resolve(output, relative), "result table");
                 validateRegular(resolve(staging, relative), "staged result table");
             }
+            for (String relative : OPTIONAL_CSV_FILES) {
+                validateRegularIfPresent(resolve(output, relative), "result table");
+                validateRegularIfPresent(resolve(staging, relative), "staged result table");
+            }
             validateOwnedFiles(liveFigures, previousFigures, "owned figure");
             validateOwnedFiles(stagedFigures, currentFigures, "staged figure");
             validateOwnedFiles(liveMaps, previousMaps, "owned class map");
@@ -578,6 +621,12 @@ public final class OipOutputWriter {
 
             java.nio.file.Files.createDirectory(backup.toPath());
             for (String relative : OWNED_CSV_FILES) {
+                backupIfPresent(resolve(output, relative),
+                        resolve(backup, relative), restore);
+            }
+            // An optional table from an earlier run is plugin-owned: it is backed up and, when
+            // this run did not produce it, not reinstalled, so stale results never linger.
+            for (String relative : OPTIONAL_CSV_FILES) {
                 backupIfPresent(resolve(output, relative),
                         resolve(backup, relative), restore);
             }
@@ -599,6 +648,13 @@ public final class OipOutputWriter {
             for (String relative : OWNED_CSV_FILES) {
                 install(resolve(staging, relative), resolve(output, relative),
                         installed, cancellation, fault);
+            }
+            for (String relative : OPTIONAL_CSV_FILES) {
+                File staged = resolve(staging, relative);
+                if (java.nio.file.Files.exists(
+                        staged.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
+                    install(staged, resolve(output, relative), installed, cancellation, fault);
+                }
             }
             for (String name : currentFigures) {
                 install(new File(stagedFigures, name), new File(liveFigures, name),

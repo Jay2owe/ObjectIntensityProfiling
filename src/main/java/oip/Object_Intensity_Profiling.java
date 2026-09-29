@@ -46,6 +46,7 @@ import oip.profile.ObjectProfileResult;
 import oip.profile.OipConfig;
 import oip.profile.ProfileAggregator;
 import oip.texture.QuantizationRange;
+import oip.texture.ZernikeMoments;
 
 import java.awt.GraphicsEnvironment;
 import java.io.File;
@@ -164,6 +165,8 @@ public final class Object_Intensity_Profiling implements PlugIn {
         dialog.addCheckbox("Texture classes", false);
         dialog.addNumericField("Texture classes (k)", 4, 0);
         dialog.addNumericField("Minimum texture voxels", 64, 0);
+        dialog.addCheckbox("Zernike moments", false);
+        dialog.addNumericField("Zernike degree", ZernikeMoments.DEFAULT_DEGREE, 0);
         dialog.addMessage("Optional fixed quantisation. Leave blank for automatic ranges.");
         for (int i = 1; i <= 4; i++) {
             dialog.addStringField("Raw " + i + " quant min", "", 10);
@@ -228,6 +231,8 @@ public final class Object_Intensity_Profiling implements PlugIn {
                 "Texture classes", dialog.getNextNumber());
         options.config.minimumTextureVoxels = exactInteger(
                 "Minimum texture voxels", dialog.getNextNumber());
+        options.config.doZernike = dialog.getNextBoolean();
+        options.config.zernikeDegree = exactInteger("Zernike degree", dialog.getNextNumber());
         for (int i = 0; i < 4; i++) {
             options.quantMin[i] = optionalNumber("Raw " + (i + 1) + " quant min",
                     dialog.getNextString());
@@ -296,6 +301,8 @@ public final class Object_Intensity_Profiling implements PlugIn {
         dialog.addCheckbox("Texture classes (slow)", false);
         dialog.addNumericField("Texture classes (k)", 4, 0);
         dialog.addNumericField("Minimum texture voxels", 64, 0);
+        dialog.addCheckbox("Zernike moments", false);
+        dialog.addNumericField("Zernike degree", ZernikeMoments.DEFAULT_DEGREE, 0);
         dialog.addMessage("Optional fixed batch quantisation. Leave blank for automatic ranges.");
         for (int i = 1; i <= 4; i++) {
             dialog.addStringField("Raw " + i + " quant min", "", 10);
@@ -345,6 +352,8 @@ public final class Object_Intensity_Profiling implements PlugIn {
                 "Texture classes", dialog.getNextNumber());
         options.config.minimumTextureVoxels = exactInteger(
                 "Minimum texture voxels", dialog.getNextNumber());
+        options.config.doZernike = dialog.getNextBoolean();
+        options.config.zernikeDegree = exactInteger("Zernike degree", dialog.getNextNumber());
         for (int i = 0; i < 4; i++) {
             options.quantMin[i] = optionalNumber("Raw " + (i + 1) + " quant min",
                     dialog.getNextString());
@@ -537,8 +546,13 @@ public final class Object_Intensity_Profiling implements PlugIn {
     private static void show(OipResult result) {
         ResultsTable summaries = OipTables.summaries(result);
         if (summaries.size() > 0) summaries.show("Object Intensity Profiles");
-        ResultsTable textures = OipTables.textures(result);
-        if (textures.size() > 0) textures.show("Object Texture");
+        OipConfig config = result.getParameters().getConfig();
+        if (config.doGlcm || config.doTextureClasses) {
+            ResultsTable textures = OipTables.textures(result);
+            if (textures.size() > 0) textures.show("Object Texture");
+        }
+        ResultsTable zernike = OipTables.zernike(result);
+        if (zernike.size() > 0) zernike.show("Object Zernike");
         for (ImagePlus figure : aggregateFigures(result)) figure.show();
         for (ImagePlus map : result.getClassMaps().values()) map.show();
     }

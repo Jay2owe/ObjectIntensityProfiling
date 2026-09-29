@@ -143,6 +143,14 @@ public final class ObjectTextureAnalyzer {
         boolean suppressed = object.voxelCount < config.minimumTextureVoxels;
         ObjectTextureResult result = new ObjectTextureResult(
                 object.label, object.voxelCount, job.partnerName, suppressed);
+        ObjectPatch mip = null;
+        if (config.doZernike) {
+            // Zernike moments have no minimum-size suppression; small objects are flagged
+            // unreliable instead. The MIP is shared with the texture-class features below.
+            mip = ObjectPatchBuilder.buildMIP(
+                    object, labels, job.partnerImage, config.boxPadPct, cancellation);
+            result.zernike = ZernikeMoments.compute(mip, config.zernikeDegree, cancellation);
+        }
         if (suppressed) return result;
 
         if (config.doGlcm) {
@@ -159,7 +167,7 @@ public final class ObjectTextureAnalyzer {
             acc.finish(result);
         }
         if (config.doTextureClasses) {
-            ObjectPatch patch = ObjectPatchBuilder.buildMIP(
+            ObjectPatch patch = mip != null ? mip : ObjectPatchBuilder.buildMIP(
                     object, labels, job.partnerImage, config.boxPadPct, cancellation);
             result.featureVector = ObjectTextureFeatures.computeFeatures(patch, cancellation);
         }

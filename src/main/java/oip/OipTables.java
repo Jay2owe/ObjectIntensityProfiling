@@ -36,6 +36,7 @@ import ij.measure.ResultsTable;
 import oip.profile.ObjectProfileResult;
 import oip.texture.ObjectTextureFeatures;
 import oip.texture.ObjectTextureResult;
+import oip.texture.ZernikeMoments;
 
 /**
  * Converts API results into ImageJ result tables for interactive use.
@@ -108,6 +109,27 @@ public final class OipTables {
             add(table, "Texture class",
                     texture.classLabel >= 0 ? texture.classLabel + 1 : Double.NaN);
             add(table, "Class distance", texture.classDistance);
+        }
+        return table;
+    }
+
+    public static ResultsTable zernike(OipResult result) {
+        ResultsTable table = new ResultsTable();
+        for (ObjectTextureResult texture : result.getTextures()) {
+            ZernikeMoments.Result moments = texture.zernike;
+            if (moments == null) continue;
+            for (int i = 0; i < moments.size(); i++) {
+                table.incrementCounter();
+                table.addValue("Source", result.getParameters().getSourceName());
+                table.addValue("Label", texture.label);
+                table.addValue("Voxel count", texture.voxelCount);
+                table.addValue("Partner", texture.partnerChannel);
+                table.addValue("N", moments.n[i]);
+                table.addValue("M", moments.m[i]);
+                add(table, "Magnitude", moments.magnitude[i]);
+                add(table, "Phase", moments.phase[i]);
+                table.addValue("Zernike reliable", moments.valid && moments.reliable ? 1 : 0);
+            }
         }
         return table;
     }

@@ -236,6 +236,35 @@ final class GoldenCases {
             }
         }));
 
+        cases.add(single("3d-zernike-only-degree4", new SingleSpec() {
+            @Override
+            OipParameters.Builder build() {
+                Scene scene = scene3d(56, 56, 8, 7, 20L);
+                OipConfig config = new OipConfig();
+                config.doZernike = true;
+                config.zernikeDegree = 4;
+                return OipParameters.builder(scene.labels(16, "labels-zernike3d"))
+                        .addRawImage("Z1", scene.raw("z1", 1401L, Pattern.GRADIENT_X))
+                        .addRawImage("Z2", scene.raw("z2", 1402L, Pattern.RIM))
+                        .referenceChannel("Z1")
+                        .config(config);
+            }
+        }));
+
+        cases.add(single("2d-zernike-with-texture-classes", new SingleSpec() {
+            @Override
+            OipParameters.Builder build() {
+                Scene scene = scene2d(96, 96, 9, 21L);
+                OipConfig config = textureConfig();
+                config.doGlcm = false;
+                config.doZernike = true;
+                return OipParameters.builder(scene.labels(16, "labels-zernike2d"))
+                        .addRawImage("T", scene.raw("t", 1501L, Pattern.TEXTURE))
+                        .config(config)
+                        .saveClassMaps(true);
+            }
+        }));
+
         cases.add(new Case("batch-three-samples-texture", new Runner() {
             @Override
             public void run(File output, File scratch) throws IOException {

@@ -580,7 +580,12 @@ public final class OipBatchRunner {
             throw new IllegalArgumentException(
                     "Requested batch profile bin count is too large.");
         }
-        if (!config.anyProfileEnabled() && !config.doGlcm && !config.doTextureClasses) {
+        if (config.doZernike && (config.zernikeDegree < 1
+                || config.zernikeDegree > oip.texture.ZernikeMoments.MAX_DEGREE)) {
+            throw new IllegalArgumentException("Zernike degree must be between 1 and "
+                    + oip.texture.ZernikeMoments.MAX_DEGREE + ".");
+        }
+        if (!config.anyProfileEnabled() && !config.anyTextureFamilyEnabled()) {
             throw new IllegalArgumentException("Enable at least one profile or texture measurement.");
         }
     }

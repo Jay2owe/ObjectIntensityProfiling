@@ -53,6 +53,9 @@ public final class ObjectTextureResult {
     public int classLabel = -1;
     public double classDistance = Double.NaN;
 
+    /** Zernike moments of the object's MIP; null when the family is disabled. */
+    public ZernikeMoments.Result zernike;
+
     ObjectTextureResult(int label, int voxelCount, String partnerChannel, boolean suppressed) {
         this.label = label;
         this.voxelCount = voxelCount;

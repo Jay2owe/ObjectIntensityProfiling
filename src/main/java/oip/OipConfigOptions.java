@@ -33,6 +33,7 @@
 package oip;
 
 import oip.profile.OipConfig;
+import oip.texture.ZernikeMoments;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -61,6 +62,7 @@ final class OipConfigOptions {
         pair(families, "mask", "box");
         pair(families, "glcm", "no_glcm");
         pair(families, "texture_classes", "no_texture_classes");
+        pair(families, "zernike", "no_zernike");
         // Mode-level options that are also on/off pairs or aliases.
         pair(families, "save_figures", "no_figures");
         pair(families, "save_maps", "no_maps");
@@ -108,6 +110,8 @@ final class OipConfigOptions {
         else if ("no_glcm".equals(flag)) c.doGlcm = false;
         else if ("texture_classes".equals(flag)) c.doTextureClasses = true;
         else if ("no_texture_classes".equals(flag)) c.doTextureClasses = false;
+        else if ("zernike".equals(flag)) c.doZernike = true;
+        else if ("no_zernike".equals(flag)) c.doZernike = false;
         else return false;
         return true;
     }
@@ -127,6 +131,9 @@ final class OipConfigOptions {
         else if ("glcm_distance".equals(key)) c.glcmDistance = integer(key, value);
         else if ("texture_k".equals(key)) c.textureClasses = integer(key, value);
         else if ("minimum_texture_voxels".equals(key)) c.minimumTextureVoxels = integer(key, value);
+        else if ("zernike_degree".equals(key)) {
+            c.zernikeDegree = integerInRange(key, value, 1, ZernikeMoments.MAX_DEGREE);
+        }
         else return false;
         return true;
     }
@@ -155,6 +162,8 @@ final class OipConfigOptions {
         tokens.add("glcm_distance=" + config.glcmDistance);
         tokens.add("texture_k=" + config.textureClasses);
         tokens.add("minimum_texture_voxels=" + config.minimumTextureVoxels);
+        tokens.add(config.doZernike ? "zernike" : "no_zernike");
+        tokens.add("zernike_degree=" + config.zernikeDegree);
     }
 
     static int integer(String key, String value) {
@@ -163,6 +172,15 @@ final class OipConfigOptions {
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException(key + " must be a whole number; got: " + value);
         }
+    }
+
+    static int integerInRange(String key, String value, int minimum, int maximum) {
+        int parsed = integer(key, value);
+        if (parsed < minimum || parsed > maximum) {
+            throw new IllegalArgumentException(key + " must be between " + minimum + " and "
+                    + maximum + "; got: " + parsed);
+        }
+        return parsed;
     }
 
     static double number(String key, String value) {

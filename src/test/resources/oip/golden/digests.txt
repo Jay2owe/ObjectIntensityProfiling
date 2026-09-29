@@ -2,6 +2,7 @@
 # source-commit: ca041c1  jdk: 21.0.12  date: 2026-09-29
 # Regenerate: sh ./mvnw -B test -Dtest=GoldenOutputTest -Doip.golden.update=true -Doip.golden.reason="stage NN: why"
 # change-log: (append one line per intended update: date, stage, reason)
+# change-log: 2026-09-29 stage 03: added Zernike cases (additive) (at 414377c, jdk 21.0.12)
 2d-16bit-sparse-labels/Aggregate/Aggregate_Profiles.csv  0994aa460f30faccf41e49b0e3f9ec72ab878ff4628b461343fa8094ae99950b
 2d-16bit-sparse-labels/Profiles/Object_Summaries.csv  4b1ebf2a95c01087d7e6628db6f18d26b2e20058a05888deca7adcc2163e3847
 2d-16bit-sparse-labels/Profiles/Per_Object_Profiles.csv  236472a786e6d268d1372461ccffa15a175af5ffa65a15e35048be4d0279e615
@@ -34,6 +35,13 @@
 2d-two-channels-box-pad25-zscore/Profiles/Per_Object_Profiles.csv  716f1a3ac0755dc4c95d9b817dca16828afe96223cf32f9190793f7ea383014c
 2d-two-channels-box-pad25-zscore/Texture/Object_Texture.csv  3a0045949bed21c2ddca1ce451434ec1ff789ec5cb900660a7a6c82fb3b8319a
 2d-two-channels-box-pad25-zscore/Texture/Quantization_Ranges.csv  de3f5e2e15869fc2f3b6dc9b68cca086a88491fb07a686ab463d7f1e7ef8a302
+2d-zernike-with-texture-classes/Aggregate/Aggregate_Profiles.csv  988367fcb392377ef0dbc7a75bab896b6b927e65cfea87ba1135f82f270f28a2
+2d-zernike-with-texture-classes/Maps/OIP_T_Texture_Classes.tif  fdb8faa837251441d75873d298f33f8bd9178985c174cfe2fc184df94af3edf7
+2d-zernike-with-texture-classes/Profiles/Object_Summaries.csv  6cc82d405db053d90835293922ace7c25441fe5dc0430aa50a7d795439700cdd
+2d-zernike-with-texture-classes/Profiles/Object_Zernike.csv  3492b2b3ee4eb00da4f50e46b5adea47c7b55eb2459385a220b440ca4c6f5495
+2d-zernike-with-texture-classes/Profiles/Per_Object_Profiles.csv  750ec58b68c461b7c0560f0f1b63ff6fbb5c487a83fe09ee3bc57bede1dd419b
+2d-zernike-with-texture-classes/Texture/Object_Texture.csv  d377da7e1a56751da1a0bc0d65612a5cb18deec6c41f1b7d74ff3ba174b865ed
+2d-zernike-with-texture-classes/Texture/Quantization_Ranges.csv  de3f5e2e15869fc2f3b6dc9b68cca086a88491fb07a686ab463d7f1e7ef8a302
 3d-anisotropic-three-channels-mean/Aggregate/Aggregate_Profiles.csv  15233707355e24c5dde23cc27abbeb688398e349705c91ca474d2a1664ecb39a
 3d-anisotropic-three-channels-mean/Profiles/Object_Summaries.csv  0374ec7a551bf1d12e4717fbac7c83bbf9a3f1b3f2931c8b92407f0b53ba035f
 3d-anisotropic-three-channels-mean/Profiles/Per_Object_Profiles.csv  d3c6a48798d85bc2320820e396c5593436932e09cafc02f6966a208b79686f5c
@@ -55,6 +63,12 @@
 3d-nan-one-voxel-border/Profiles/Per_Object_Profiles.csv  b1b9bb00be3a19040b8346f1e2e341961fc2d4c4a0e8901dbeee0e6fcfde94e6
 3d-nan-one-voxel-border/Texture/Object_Texture.csv  3a0045949bed21c2ddca1ce451434ec1ff789ec5cb900660a7a6c82fb3b8319a
 3d-nan-one-voxel-border/Texture/Quantization_Ranges.csv  de3f5e2e15869fc2f3b6dc9b68cca086a88491fb07a686ab463d7f1e7ef8a302
+3d-zernike-only-degree4/Aggregate/Aggregate_Profiles.csv  b32516880cdd67502e552a4ef2cf4cf3c14cbe7bcc9868d30c10ff9701eced32
+3d-zernike-only-degree4/Profiles/Object_Summaries.csv  0aa1201fa1a965d9b05d35f15a547fe0e440ec69333b446ce7d90f2996f59953
+3d-zernike-only-degree4/Profiles/Object_Zernike.csv  fc4a68efa3764073bd5a9f6d364812bd424af986b19e21150dc706a012ca1799
+3d-zernike-only-degree4/Profiles/Per_Object_Profiles.csv  f757cf6636305f3d44a2fb5c987c07e6da3338ce013178670d7d689997e6c164
+3d-zernike-only-degree4/Texture/Object_Texture.csv  3a0045949bed21c2ddca1ce451434ec1ff789ec5cb900660a7a6c82fb3b8319a
+3d-zernike-only-degree4/Texture/Quantization_Ranges.csv  de3f5e2e15869fc2f3b6dc9b68cca086a88491fb07a686ab463d7f1e7ef8a302
 batch-three-samples-texture/Aggregate/Aggregate_Profiles.csv  9b5b03a17178dead01d157418e44158875a493af1f1ce6b8f50817e8f860ce8c
 batch-three-samples-texture/Samples/S1/Aggregate/Aggregate_Profiles.csv  667e2d1be3238f23c9bf7ccb7584ce88fb8b07d23c5398900c5983ad9cef4951
 batch-three-samples-texture/Samples/S1/Maps/OIP_C1_Texture_Classes.tif  196d7fac97bbeccda1c9d9ab9dfc0d3bc5f5b8a037a08ddd8630707d1e953ae2
