@@ -162,7 +162,7 @@ public final class Object_Intensity_Profiling implements PlugIn {
         optional[0] = "<none>";
         System.arraycopy(titles, 0, optional, 1, titles.length);
 
-        GenericDialog dialog = new GenericDialog("Object Intensity Profiling");
+        FittingDialog dialog = new FittingDialog(TITLE);
         dialog.addMessage("The label image or ROI set defines objects. "
                 + "Choose the raw correlation reference.");
         dialog.addChoice("Objects from", OBJECT_SOURCES, OBJECT_SOURCES[0]);
@@ -170,58 +170,26 @@ public final class Object_Intensity_Profiling implements PlugIn {
         dialog.addFileField("Object ROI set", "");
         dialog.addFileField("Region ROI set (optional)", "");
         dialog.addChoice("Raw 1", titles, titles[Math.min(1, titles.length - 1)]);
+        dialog.addToSameRow();
         dialog.addChoice("Raw 2", optional, optional[0]);
         dialog.addChoice("Raw 3", optional, optional[0]);
+        dialog.addToSameRow();
         dialog.addChoice("Raw 4", optional, optional[0]);
-        dialog.addChoice("Correlation reference",
-                new String[] {"Raw 1", "Raw 2", "Raw 3", "Raw 4"}, "Raw 1");
-        dialog.addMessage("Profiles");
-        dialog.addCheckbox("Radial", true);
-        dialog.addCheckbox("Marginal X/Y/Z", true);
-        dialog.addCheckbox("Principal axis", true);
-        dialog.addCheckbox("Angular / ring completeness", true);
-        dialog.addCheckbox("Concentric shells", true);
-        dialog.addCheckbox("Pearson, overlap and Manders", true);
-        dialog.addChoice("Sampling area", new String[] {"Object mask", "Padded box"}, "Object mask");
-        dialog.addChoice("Profile normalisation",
-                new String[] {"Per-object min/max", "Divide by mean", "Z-score"},
-                "Per-object min/max");
-        dialog.addNumericField("Radial bins", 20, 0);
-        dialog.addNumericField("Curve bins", 50, 0);
-        dialog.addNumericField("Angular bins", 12, 0);
-        dialog.addNumericField("Shells", 3, 0);
-        dialog.addNumericField("Box padding (%)", 0, 1);
-        dialog.addNumericField("Ring threshold (%)", 50, 1);
-        dialog.addNumericField("Reference threshold", 0, 3);
-        dialog.addNumericField("Partner threshold", 0, 3);
-        addProfileClassFields(dialog);
-        dialog.addMessage("Texture (slow; disabled by default)");
-        dialog.addCheckbox("GLCM texture", false);
-        dialog.addNumericField("GLCM grey levels", 32, 0);
-        dialog.addNumericField("GLCM distance", 1, 0);
-        dialog.addCheckbox("Texture classes", false);
-        dialog.addNumericField("Texture classes (k)", 4, 0);
-        dialog.addNumericField("Minimum texture voxels", 64, 0);
-        dialog.addCheckbox("Zernike moments", false);
-        dialog.addNumericField("Zernike degree", ZernikeMoments.DEFAULT_DEGREE, 0);
-        dialog.addMessage("Optional fixed quantisation. Leave blank for automatic ranges.");
-        for (int i = 1; i <= 4; i++) {
-            dialog.addStringField("Raw " + i + " quant min", "", 10);
-            dialog.addStringField("Raw " + i + " quant max", "", 10);
-        }
-        dialog.addCheckbox("Save aggregate figures", true);
-        dialog.addCheckbox("Save texture class maps", true);
+        dialog.addChoice("Correlation reference", REFERENCE_SLOTS, REFERENCE_SLOTS[0]);
+        addAnalysisFields(dialog, new OipConfig());
+        addQuantizationFields(dialog,
+                "Optional fixed quantisation. Leave blank for automatic ranges.",
+                new Double[4], new Double[4]);
+        dialog.addCheckboxGroup(1, 3,
+                new String[] {"Save aggregate figures", "Save texture class maps",
+                    "Hide result tables"},
+                new boolean[] {true, true, false});
         dialog.addCheckbox("Auto-save", false);
-        dialog.addStringField("Output directory", "", 45);
-        dialog.addCheckbox("Hide result tables", false);
+        dialog.addToSameRow();
+        dialog.addStringField("Output directory", "", 36);
 
         boolean recording = Recorder.record;
-        try {
-            if (recording) Recorder.record = false;
-            dialog.showDialog();
-        } finally {
-            if (recording) Recorder.record = true;
-        }
+        showWithoutRecording(dialog);
         if (dialog.wasCanceled()) return;
 
         OipMacroOptions options = new OipMacroOptions();
@@ -257,48 +225,14 @@ public final class Object_Intensity_Profiling implements PlugIn {
                     "The selected correlation reference raw slot is empty.");
         }
         options.referenceChannel = options.rawNames[referenceSlot];
-        options.config.doRadial = dialog.getNextBoolean();
-        options.config.doMarginal = dialog.getNextBoolean();
-        options.config.doPrincipalAxis = dialog.getNextBoolean();
-        options.config.doAngular = dialog.getNextBoolean();
-        options.config.doShell = dialog.getNextBoolean();
-        options.config.doWithinBox = dialog.getNextBoolean();
-        options.config.region = dialog.getNextChoiceIndex() == 0
-                ? OipConfig.Region.OBJECT_VOXELS : OipConfig.Region.WHOLE_BOX;
-        options.config.intensityNorm = intensityNorm(dialog.getNextChoiceIndex());
-        options.config.radialBins = exactInteger("Radial bins", dialog.getNextNumber());
-        options.config.resampleN = exactInteger("Curve bins", dialog.getNextNumber());
-        options.config.angularBins = exactInteger("Angular bins", dialog.getNextNumber());
-        options.config.shells = exactInteger("Shells", dialog.getNextNumber());
-        options.config.boxPadPct = dialog.getNextNumber();
-        options.config.ringThresholdPct = dialog.getNextNumber();
-        options.config.referenceThreshold = dialog.getNextNumber();
-        options.config.partnerThreshold = dialog.getNextNumber();
-        readProfileClassFields(dialog, options.config);
-        options.config.doGlcm = dialog.getNextBoolean();
-        options.config.glcmLevels = exactInteger(
-                "GLCM grey levels", dialog.getNextNumber());
-        options.config.glcmDistance = exactInteger(
-                "GLCM distance", dialog.getNextNumber());
-        options.config.doTextureClasses = dialog.getNextBoolean();
-        options.config.textureClasses = exactInteger(
-                "Texture classes", dialog.getNextNumber());
-        options.config.minimumTextureVoxels = exactInteger(
-                "Minimum texture voxels", dialog.getNextNumber());
-        options.config.doZernike = dialog.getNextBoolean();
-        options.config.zernikeDegree = exactInteger("Zernike degree", dialog.getNextNumber());
-        for (int i = 0; i < 4; i++) {
-            options.quantMin[i] = optionalNumber("Raw " + (i + 1) + " quant min",
-                    dialog.getNextString());
-            options.quantMax[i] = optionalNumber("Raw " + (i + 1) + " quant max",
-                    dialog.getNextString());
-        }
+        readAnalysisFields(dialog, options.config);
+        readQuantizationFields(dialog, options.quantMin, options.quantMax);
         options.validateQuantizationSlots();
         options.saveFigures = dialog.getNextBoolean();
         options.saveClassMaps = dialog.getNextBoolean();
+        options.hideDisplay = dialog.getNextBoolean();
         options.autoSave = dialog.getNextBoolean();
         options.outputDirectory = dialog.getNextString();
-        options.hideDisplay = dialog.getNextBoolean();
         if (options.autoSave && !OipMacroOptions.hasText(options.outputDirectory)) {
             DirectoryChooser chooser = new DirectoryChooser("Choose output directory");
             options.outputDirectory = chooser.getDirectory();
@@ -308,134 +242,119 @@ public final class Object_Intensity_Profiling implements PlugIn {
         runOptions(options);
     }
 
+    /**
+     * Folder batch: settings, then a pairing preview. Back in the preview returns to the
+     * settings with everything as entered; Run batch records one macro line and runs.
+     */
     private void runBatchInteractive() {
         DirectoryChooser labelChooser = new DirectoryChooser("Choose label-image folder");
         String labelDirectory = labelChooser.getDirectory();
         if (!OipMacroOptions.hasText(labelDirectory)) return;
 
-        GenericDialog dialog = new GenericDialog("Object Intensity Profiling - Folder batch");
-        dialog.addMessage("Capture group 1 in every regular expression is the sample key.");
-        dialog.addStringField("Label regex", "(.*)_labels?\\.tif{1,2}", 42);
-        dialog.addStringField("Raw 1 name", "Raw1", 16);
-        dialog.addStringField("Raw 1 folder", labelDirectory, 42);
-        dialog.addStringField("Raw 1 regex", "(.*)_raw1\\.tif{1,2}", 42);
-        for (int i = 2; i <= 4; i++) {
-            dialog.addStringField("Raw " + i + " name", "", 16);
-            dialog.addStringField("Raw " + i + " folder", labelDirectory, 42);
-            dialog.addStringField("Raw " + i + " regex", "", 42);
-        }
-        dialog.addChoice("Correlation reference",
-                new String[] {"Raw 1", "Raw 2", "Raw 3", "Raw 4"}, "Raw 1");
-        dialog.addStringField("Output directory",
-                new File(labelDirectory, "Object Intensity Profiling Results").getAbsolutePath(), 42);
-        dialog.addCheckbox("Include subfolders", true);
-        dialog.addMessage("Profiles");
-        dialog.addCheckbox("Radial", true);
-        dialog.addCheckbox("Marginal X/Y/Z", true);
-        dialog.addCheckbox("Principal axis", true);
-        dialog.addCheckbox("Angular / ring completeness", true);
-        dialog.addCheckbox("Concentric shells", true);
-        dialog.addCheckbox("Pearson, overlap and Manders", true);
-        dialog.addChoice("Sampling area", new String[] {"Object mask", "Padded box"}, "Object mask");
-        dialog.addChoice("Profile normalisation",
-                new String[] {"Per-object min/max", "Divide by mean", "Z-score"},
-                "Per-object min/max");
-        dialog.addNumericField("Radial bins", 20, 0);
-        dialog.addNumericField("Curve bins", 50, 0);
-        dialog.addNumericField("Angular bins", 12, 0);
-        dialog.addNumericField("Shells", 3, 0);
-        dialog.addNumericField("Box padding (%)", 0, 1);
-        dialog.addNumericField("Ring threshold (%)", 50, 1);
-        dialog.addNumericField("Reference threshold", 0, 3);
-        dialog.addNumericField("Partner threshold", 0, 3);
-        addProfileClassFields(dialog);
-        dialog.addMessage("Texture (slow; disabled by default)");
-        dialog.addCheckbox("GLCM texture (slow)", false);
-        dialog.addNumericField("GLCM grey levels", 32, 0);
-        dialog.addNumericField("GLCM distance", 1, 0);
-        dialog.addCheckbox("Texture classes (slow)", false);
-        dialog.addNumericField("Texture classes (k)", 4, 0);
-        dialog.addNumericField("Minimum texture voxels", 64, 0);
-        dialog.addCheckbox("Zernike moments", false);
-        dialog.addNumericField("Zernike degree", ZernikeMoments.DEFAULT_DEGREE, 0);
-        dialog.addMessage("Optional fixed batch quantisation. Leave blank for automatic ranges.");
-        for (int i = 1; i <= 4; i++) {
-            dialog.addStringField("Raw " + i + " quant min", "", 10);
-            dialog.addStringField("Raw " + i + " quant max", "", 10);
-        }
-        dialog.addCheckbox("Save aggregate figures", true);
-        dialog.addCheckbox("Save texture class maps", true);
         boolean recording = Recorder.record;
-        showWithoutRecording(dialog);
-        if (dialog.wasCanceled()) return;
+        OipBatchMacroOptions entered = defaultBatchOptions(labelDirectory);
+        while (true) {
+            FittingDialog dialog = batchDialog(entered);
+            showWithoutRecording(dialog);
+            if (dialog.wasCanceled()) return;
+            OipBatchMacroOptions options = readBatchDialog(dialog);
 
+            OipBatchParameters parameters = batchParameters(options);
+            IJ.resetEscape();
+            OipBatchRunner.PreparedBatch prepared = OipBatchRunner.prepare(parameters);
+            FittingDialog confirmation = new FittingDialog("Confirm batch pairing");
+            confirmation.addMessage(previewText(prepared.previewLines(), PREVIEW_LIMIT));
+            confirmation.enableYesNoCancel("Run batch", "Back");
+            showWithoutRecording(confirmation);
+            if (confirmation.wasCanceled()) return;
+            if (!confirmation.wasOKed()) {
+                entered = options; // Back
+                continue;
+            }
+            if (recording) record(options.toMacroOptions());
+            runBatch(parameters, prepared, options.hideDisplay);
+            return;
+        }
+    }
+
+    static final String DEFAULT_LABEL_REGEX = "(.*)_labels?\\.tif{1,2}";
+    static final String DEFAULT_RAW_REGEX = "(.*)_raw1\\.tif{1,2}";
+
+    /** The batch settings shown the first time: raw folders default to the label folder. */
+    static OipBatchMacroOptions defaultBatchOptions(String labelDirectory) {
         OipBatchMacroOptions options = new OipBatchMacroOptions();
         options.labelFolder = labelDirectory;
+        options.labelRegex = DEFAULT_LABEL_REGEX;
+        options.rawNames[0] = "Raw1";
+        options.rawRegexes[0] = DEFAULT_RAW_REGEX;
+        for (int i = 0; i < 4; i++) options.rawFolders[i] = labelDirectory;
+        options.referenceChannel = "Raw1";
+        options.outputDirectory = new File(labelDirectory,
+                "Object Intensity Profiling Results").getAbsolutePath();
+        return options;
+    }
+
+    private static FittingDialog batchDialog(OipBatchMacroOptions values) {
+        FittingDialog dialog = new FittingDialog(TITLE + " - Folder batch");
+        dialog.addMessage("Capture group 1 in every regular expression is the sample key.");
+        dialog.addDirectoryField("Label folder", text(values.labelFolder), 36);
+        dialog.addStringField("Label regex", text(values.labelRegex), 36);
+        for (int i = 0; i < 4; i++) {
+            dialog.addStringField("Raw " + (i + 1) + " name", text(values.rawNames[i]), 8);
+            dialog.addToSameRow();
+            dialog.addStringField("Raw " + (i + 1) + " regex", text(values.rawRegexes[i]), 24);
+            dialog.addDirectoryField("Raw " + (i + 1) + " folder", text(values.rawFolders[i]), 36);
+        }
+        dialog.addChoice("Correlation reference", REFERENCE_SLOTS,
+                REFERENCE_SLOTS[referenceSlot(values)]);
+        dialog.addToSameRow();
+        dialog.addCheckbox("Include subfolders", values.recursive);
+        dialog.addDirectoryField("Output directory", text(values.outputDirectory), 36);
+        addAnalysisFields(dialog, values.config);
+        addQuantizationFields(dialog,
+                "Optional fixed batch quantisation. Leave blank for automatic ranges.",
+                values.quantMin, values.quantMax);
+        dialog.addCheckboxGroup(1, 2,
+                new String[] {"Save aggregate figures", "Save texture class maps"},
+                new boolean[] {values.saveFigures, values.saveClassMaps});
+        return dialog;
+    }
+
+    private static OipBatchMacroOptions readBatchDialog(GenericDialog dialog) {
+        OipBatchMacroOptions options = new OipBatchMacroOptions();
+        options.labelFolder = dialog.getNextString().trim();
         options.labelRegex = dialog.getNextString();
         for (int i = 0; i < 4; i++) {
             options.rawNames[i] = dialog.getNextString();
-            options.rawFolders[i] = dialog.getNextString();
             options.rawRegexes[i] = dialog.getNextString();
+            options.rawFolders[i] = dialog.getNextString();
         }
         int referenceSlot = dialog.getNextChoiceIndex();
-        options.outputDirectory = dialog.getNextString();
         options.recursive = dialog.getNextBoolean();
-        options.config.doRadial = dialog.getNextBoolean();
-        options.config.doMarginal = dialog.getNextBoolean();
-        options.config.doPrincipalAxis = dialog.getNextBoolean();
-        options.config.doAngular = dialog.getNextBoolean();
-        options.config.doShell = dialog.getNextBoolean();
-        options.config.doWithinBox = dialog.getNextBoolean();
-        options.config.region = dialog.getNextChoiceIndex() == 0
-                ? OipConfig.Region.OBJECT_VOXELS : OipConfig.Region.WHOLE_BOX;
-        options.config.intensityNorm = intensityNorm(dialog.getNextChoiceIndex());
-        options.config.radialBins = exactInteger("Radial bins", dialog.getNextNumber());
-        options.config.resampleN = exactInteger("Curve bins", dialog.getNextNumber());
-        options.config.angularBins = exactInteger("Angular bins", dialog.getNextNumber());
-        options.config.shells = exactInteger("Shells", dialog.getNextNumber());
-        options.config.boxPadPct = dialog.getNextNumber();
-        options.config.ringThresholdPct = dialog.getNextNumber();
-        options.config.referenceThreshold = dialog.getNextNumber();
-        options.config.partnerThreshold = dialog.getNextNumber();
-        readProfileClassFields(dialog, options.config);
-        options.config.doGlcm = dialog.getNextBoolean();
-        options.config.glcmLevels = exactInteger(
-                "GLCM grey levels", dialog.getNextNumber());
-        options.config.glcmDistance = exactInteger(
-                "GLCM distance", dialog.getNextNumber());
-        options.config.doTextureClasses = dialog.getNextBoolean();
-        options.config.textureClasses = exactInteger(
-                "Texture classes", dialog.getNextNumber());
-        options.config.minimumTextureVoxels = exactInteger(
-                "Minimum texture voxels", dialog.getNextNumber());
-        options.config.doZernike = dialog.getNextBoolean();
-        options.config.zernikeDegree = exactInteger("Zernike degree", dialog.getNextNumber());
-        for (int i = 0; i < 4; i++) {
-            options.quantMin[i] = optionalNumber("Raw " + (i + 1) + " quant min",
-                    dialog.getNextString());
-            options.quantMax[i] = optionalNumber("Raw " + (i + 1) + " quant max",
-                    dialog.getNextString());
-        }
+        options.outputDirectory = dialog.getNextString();
+        readAnalysisFields(dialog, options.config);
+        readQuantizationFields(dialog, options.quantMin, options.quantMax);
         options.validateQuantizationSlots();
         options.saveFigures = dialog.getNextBoolean();
         options.saveClassMaps = dialog.getNextBoolean();
+        if (!OipMacroOptions.hasText(options.labelFolder)) {
+            throw new IllegalArgumentException("Choose the label-image folder.");
+        }
         if (!OipMacroOptions.hasText(options.rawNames[referenceSlot])) {
             throw new IllegalArgumentException(
                     "The selected batch correlation reference raw slot is empty.");
         }
         options.referenceChannel = options.rawNames[referenceSlot];
+        return options;
+    }
 
-        OipBatchParameters parameters = batchParameters(options);
-        IJ.resetEscape();
-        OipBatchRunner.PreparedBatch prepared = OipBatchRunner.prepare(parameters);
-        GenericDialog confirmation = new GenericDialog("Confirm batch pairing");
-        confirmation.addMessage(previewText(prepared.previewLines(), PREVIEW_LIMIT));
-        confirmation.enableYesNoCancel("Run batch", "Back");
-        showWithoutRecording(confirmation);
-        if (confirmation.wasCanceled() || !confirmation.wasOKed()) return;
-
-        if (recording) record(options.toMacroOptions());
-        runBatch(parameters, prepared, options.hideDisplay);
+    /** Slot (0 to 3) whose raw name is the reference channel; slot 0 when none matches. */
+    static int referenceSlot(OipBatchMacroOptions options) {
+        for (int i = 0; i < 4; i++) {
+            if (OipMacroOptions.hasText(options.rawNames[i])
+                    && options.rawNames[i].equals(options.referenceChannel)) return i;
+        }
+        return 0;
     }
 
     /**
@@ -466,18 +385,152 @@ public final class Object_Intensity_Profiling implements PlugIn {
         "Radial", "Shell", "Angular", "Principal major", "Marginal X", "Marginal Y"
     };
 
-    private static void addProfileClassFields(GenericDialog dialog) {
-        dialog.addCheckbox("Profile-shape classes", false);
-        dialog.addChoice("Profile class curve", PROFILE_CLASS_CURVES, PROFILE_CLASS_CURVES[0]);
-        dialog.addNumericField("Profile classes (k)", 4, 0);
+    private static final String[] REFERENCE_SLOTS = {"Raw 1", "Raw 2", "Raw 3", "Raw 4"};
+    private static final String[] REGIONS = {"Object mask", "Padded box"};
+    private static final String[] NORMALISATIONS =
+            {"Per-object min/max", "Divide by mean", "Z-score"};
+
+    /**
+     * The profile, profile-class and texture options shared by both dialogs, several to a row
+     * so the dialog fits a laptop screen. {@link #readAnalysisFields} reads them in this order.
+     */
+    private static void addAnalysisFields(GenericDialog dialog, OipConfig values) {
+        dialog.addMessage("Profiles");
+        dialog.addCheckboxGroup(2, 3,
+                new String[] {"Radial", "Marginal X/Y/Z", "Principal axis",
+                    "Angular / ring completeness", "Concentric shells",
+                    "Pearson, overlap and Manders"},
+                new boolean[] {values.doRadial, values.doMarginal, values.doPrincipalAxis,
+                    values.doAngular, values.doShell, values.doWithinBox});
+        dialog.addChoice("Sampling area", REGIONS,
+                REGIONS[values.region == OipConfig.Region.WHOLE_BOX ? 1 : 0]);
+        dialog.addToSameRow();
+        dialog.addChoice("Profile normalisation", NORMALISATIONS,
+                NORMALISATIONS[normalisationIndex(values.intensityNorm)]);
+        dialog.addNumericField("Radial bins", values.radialBins, 0);
+        dialog.addToSameRow();
+        dialog.addNumericField("Curve bins", values.resampleN, 0);
+        dialog.addToSameRow();
+        dialog.addNumericField("Angular bins", values.angularBins, 0);
+        dialog.addToSameRow();
+        dialog.addNumericField("Shells", values.shells, 0);
+        dialog.addNumericField("Box padding (%)", values.boxPadPct,
+                decimals(values.boxPadPct, 1));
+        dialog.addToSameRow();
+        dialog.addNumericField("Ring threshold (%)", values.ringThresholdPct,
+                decimals(values.ringThresholdPct, 1));
+        dialog.addToSameRow();
+        dialog.addNumericField("Reference threshold", values.referenceThreshold,
+                decimals(values.referenceThreshold, 3));
+        dialog.addToSameRow();
+        dialog.addNumericField("Partner threshold", values.partnerThreshold,
+                decimals(values.partnerThreshold, 3));
+        dialog.addCheckbox("Profile-shape classes", values.doProfileClasses);
+        dialog.addToSameRow();
+        dialog.addChoice("Profile class curve", PROFILE_CLASS_CURVES,
+                PROFILE_CLASS_CURVES[values.profileClassFamily.ordinal()]);
+        dialog.addToSameRow();
+        dialog.addNumericField("Profile classes (k)", values.profileClasses, 0);
+        dialog.addMessage("Texture (slow; disabled by default)");
+        dialog.addCheckbox("GLCM texture", values.doGlcm);
+        dialog.addToSameRow();
+        dialog.addNumericField("GLCM grey levels", values.glcmLevels, 0);
+        dialog.addToSameRow();
+        dialog.addNumericField("GLCM distance", values.glcmDistance, 0);
+        dialog.addCheckbox("Texture classes", values.doTextureClasses);
+        dialog.addToSameRow();
+        dialog.addNumericField("Texture classes (k)", values.textureClasses, 0);
+        dialog.addToSameRow();
+        dialog.addNumericField("Minimum texture voxels", values.minimumTextureVoxels, 0);
+        dialog.addCheckbox("Zernike moments", values.doZernike);
+        dialog.addToSameRow();
+        dialog.addNumericField("Zernike degree", values.zernikeDegree, 0);
     }
 
-    private static void readProfileClassFields(GenericDialog dialog, OipConfig config) {
+    private static void readAnalysisFields(GenericDialog dialog, OipConfig config) {
+        config.doRadial = dialog.getNextBoolean();
+        config.doMarginal = dialog.getNextBoolean();
+        config.doPrincipalAxis = dialog.getNextBoolean();
+        config.doAngular = dialog.getNextBoolean();
+        config.doShell = dialog.getNextBoolean();
+        config.doWithinBox = dialog.getNextBoolean();
+        config.region = dialog.getNextChoiceIndex() == 0
+                ? OipConfig.Region.OBJECT_VOXELS : OipConfig.Region.WHOLE_BOX;
+        config.intensityNorm = intensityNorm(dialog.getNextChoiceIndex());
+        config.radialBins = exactInteger("Radial bins", dialog.getNextNumber());
+        config.resampleN = exactInteger("Curve bins", dialog.getNextNumber());
+        config.angularBins = exactInteger("Angular bins", dialog.getNextNumber());
+        config.shells = exactInteger("Shells", dialog.getNextNumber());
+        config.boxPadPct = dialog.getNextNumber();
+        config.ringThresholdPct = dialog.getNextNumber();
+        config.referenceThreshold = dialog.getNextNumber();
+        config.partnerThreshold = dialog.getNextNumber();
         config.doProfileClasses = dialog.getNextBoolean();
         config.profileClassFamily =
                 ProfileShapeClassifier.Family.values()[dialog.getNextChoiceIndex()];
         config.profileClasses = exactInteger("Profile classes (k)", dialog.getNextNumber());
+        config.doGlcm = dialog.getNextBoolean();
+        config.glcmLevels = exactInteger("GLCM grey levels", dialog.getNextNumber());
+        config.glcmDistance = exactInteger("GLCM distance", dialog.getNextNumber());
+        config.doTextureClasses = dialog.getNextBoolean();
+        config.textureClasses = exactInteger("Texture classes", dialog.getNextNumber());
+        config.minimumTextureVoxels = exactInteger(
+                "Minimum texture voxels", dialog.getNextNumber());
+        config.doZernike = dialog.getNextBoolean();
+        config.zernikeDegree = exactInteger("Zernike degree", dialog.getNextNumber());
         OipConfigOptions.validate(config);
+    }
+
+    /** Manual GLCM ranges, min and max of two raw slots to a row. */
+    private static void addQuantizationFields(GenericDialog dialog, String message,
+                                              Double[] min, Double[] max) {
+        dialog.addMessage(message);
+        for (int i = 0; i < 4; i++) {
+            if (i % 2 == 1) dialog.addToSameRow();
+            dialog.addStringField("Raw " + (i + 1) + " quant min", text(min[i]), 8);
+            dialog.addToSameRow();
+            dialog.addStringField("Raw " + (i + 1) + " quant max", text(max[i]), 8);
+        }
+    }
+
+    private static void readQuantizationFields(GenericDialog dialog, Double[] min, Double[] max) {
+        for (int i = 0; i < 4; i++) {
+            min[i] = optionalNumber("Raw " + (i + 1) + " quant min", dialog.getNextString());
+            max[i] = optionalNumber("Raw " + (i + 1) + " quant max", dialog.getNextString());
+        }
+    }
+
+    private static String text(String value) {
+        return value == null ? "" : value;
+    }
+
+    /** A manual range as typed back into its field: exact, and without a needless ".0". */
+    static String text(Double value) {
+        if (value == null) return "";
+        double v = value.doubleValue();
+        if (v == Math.rint(v) && Math.abs(v) < 1e15) return Long.toString((long) v);
+        return value.toString();
+    }
+
+    /**
+     * Decimal places (at least {@code minimum}) with which a numeric field shows
+     * {@code value} exactly, so Back never shows a rounded value that would then be used.
+     */
+    static int decimals(double value, int minimum) {
+        for (int digits = minimum; digits < 9; digits++) {
+            try {
+                if (Double.parseDouble(IJ.d2s(value, digits)) == value) return digits;
+            } catch (NumberFormatException notANumber) {
+                return minimum;
+            }
+        }
+        return 9;
+    }
+
+    private static int normalisationIndex(OipConfig.IntensityNorm norm) {
+        if (norm == OipConfig.IntensityNorm.DIVIDE_BY_MEAN) return 1;
+        if (norm == OipConfig.IntensityNorm.ZSCORE) return 2;
+        return 0;
     }
 
     /** Record exactly one runnable line, replacing ImageJ's bare command line. */

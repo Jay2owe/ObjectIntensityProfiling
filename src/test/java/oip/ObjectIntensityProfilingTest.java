@@ -414,6 +414,57 @@ public class ObjectIntensityProfilingTest {
         assertTrue(result.getClassMaps().isEmpty());
     }
 
+    /** Back in the batch preview redisplays every typed value exactly, never rounded. */
+    @Test
+    public void batchSettingsRedisplayTypedValuesExactly() {
+        for (double value : new double[] {0, 50, 2.25, 0.123456, 1e-7, 12345.678901}) {
+            int digits = Object_Intensity_Profiling.decimals(value, 1);
+            assertEquals(value, Double.parseDouble(ij.IJ.d2s(value, digits)), 0.0);
+        }
+        assertEquals(1, Object_Intensity_Profiling.decimals(0, 1));
+        assertEquals(3, Object_Intensity_Profiling.decimals(0, 3));
+        assertEquals("65535", Object_Intensity_Profiling.text(Double.valueOf(65535)));
+        assertEquals("0.5", Object_Intensity_Profiling.text(Double.valueOf(0.5)));
+        assertEquals("", Object_Intensity_Profiling.text((Double) null));
+
+        OipBatchMacroOptions entered = Object_Intensity_Profiling.defaultBatchOptions("C:/data/");
+        assertEquals(0, Object_Intensity_Profiling.referenceSlot(entered));
+        entered.rawNames[2] = "Marker";
+        entered.referenceChannel = "Marker";
+        assertEquals(2, Object_Intensity_Profiling.referenceSlot(entered));
+    }
+
+    /**
+     * GUI check (0.3.0): on a 1536 x 864 screen the dialogs were clamped to the screen with the
+     * label/raw choices and the OK button cut off. A dialog taller than the screen now scrolls
+     * its fields and keeps the button row visible. Needs a display.
+     */
+    @Test
+    public void tallDialogScrollsItsFieldsAndKeepsTheButtons() {
+        org.junit.Assume.assumeFalse(java.awt.GraphicsEnvironment.isHeadless());
+        FittingDialog dialog = new FittingDialog("fit");
+        try {
+            for (int i = 0; i < 60; i++) dialog.addNumericField("Field " + i, i, 0);
+            java.awt.Panel buttons = new java.awt.Panel();
+            buttons.add(new java.awt.Button("OK"));
+            dialog.add(buttons); // GenericDialog adds its button row last, then packs
+            dialog.addNotify();
+            dialog.setSize(dialog.getPreferredSize());
+            java.awt.Rectangle screen = new java.awt.Rectangle(0, 0, 800, 400);
+
+            assertTrue(dialog.fitTo(screen));
+            assertTrue(dialog.getHeight() <= 400 && dialog.getWidth() <= 800);
+            assertEquals(2, dialog.getComponentCount());
+            assertTrue(dialog.getComponent(0) instanceof java.awt.ScrollPane);
+            assertTrue(dialog.getComponent(1) == buttons);
+            assertEquals(60, dialog.getNumericFields().size());
+            assertFalse("a dialog that fits is left alone",
+                    dialog.fitTo(new java.awt.Rectangle(0, 0, 5000, 5000)));
+        } finally {
+            dialog.dispose();
+        }
+    }
+
     @Test
     public void interactivePresentationBuildsAggregateProfilePlots() {
         ImagePlus labels = SyntheticImages.image("labels", 16, 16, 1, constant(1));
