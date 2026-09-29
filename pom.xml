@@ -14,7 +14,7 @@
 
 	<groupId>io.github.jay2owe</groupId>
 	<artifactId>Object_Intensity_Profiling</artifactId>
-	<version>0.3.0</version>
+	<version>0.3.1-SNAPSHOT</version>
 
 	<name>Object Intensity Profiling</name>
 	<description>Per-object, cross-channel intensity profiles and texture measurements for ImageJ and Fiji</description>
