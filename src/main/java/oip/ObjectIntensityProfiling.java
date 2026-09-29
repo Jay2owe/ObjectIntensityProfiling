@@ -84,6 +84,10 @@ public final class ObjectIntensityProfiling {
 
     private static OipResult run(OipParameters parameters, boolean assignTextureClasses) {
         validate(parameters);
+        // A batch reports uncalibrated samples once in its preflight instead.
+        if (assignTextureClasses && OipInputChecks.uncalibrated3d(parameters.getLabelImage())) {
+            OipInputChecks.warnUncalibrated3d("\"" + parameters.getLabelImage().getTitle() + "\"");
+        }
         OipConfig config = parameters.getConfig();
         progress(parameters, 0.02, "Extracting objects");
         List<ObjectInfo> objects = LabelObjects.extract(
@@ -122,13 +126,21 @@ public final class ObjectIntensityProfiling {
                 new LinkedHashMap<String, QuantizationRange>();
         if (config.doGlcm) {
             progress(parameters, 0.52, "Determining fixed texture ranges");
+            // Each channel gets its own slice of the progress range, so progress never goes back.
+            int channels = parameters.getRawImages().size();
+            int channel = 0;
             for (Map.Entry<String, ImagePlus> entry : parameters.getRawImages().entrySet()) {
                 QuantizationRange supplied = parameters.getQuantizationRanges().get(entry.getKey());
+                double from = 0.52 + 0.08 * channel / channels;
+                double to = 0.52 + 0.08 * (channel + 1) / channels;
                 ranges.put(entry.getKey(), supplied == null
                         ? QuantizationRange.scan(entry.getValue(),
+                                "channel " + entry.getKey() + " (" + entry.getValue().getTitle()
+                                        + ")",
                                 parameters.getCancellationToken(),
-                                scaled(parameters, 0.52, 0.60))
+                                scaled(parameters, from, to))
                         : supplied);
+                channel++;
             }
         }
 
@@ -189,6 +201,7 @@ public final class ObjectIntensityProfiling {
             throw new IllegalArgumentException(
                     "The label input must be a single-channel, single-timepoint image.");
         }
+        OipInputChecks.requireNotRgb(labels, "label image");
         if (parameters.getRawImages().isEmpty() || parameters.getRawImages().size() > 4) {
             throw new IllegalArgumentException("Provide between 1 and 4 raw intensity images.");
         }
@@ -223,6 +236,8 @@ public final class ObjectIntensityProfiling {
                 throw new IllegalArgumentException("Raw image dimensions do not match the label image: "
                         + entry.getKey());
             }
+            OipInputChecks.requireNotRgb(raw, "raw channel " + entry.getKey());
+            OipInputChecks.requireMatchingCalibration(labels, raw, "raw channel " + entry.getKey());
         }
         for (String channel : parameters.getQuantizationRanges().keySet()) {
             if (!parameters.getRawImages().containsKey(channel)) {

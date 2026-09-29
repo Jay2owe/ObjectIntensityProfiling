@@ -31,6 +31,24 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Texture classes and profile-shape classes share one deterministic k-means implementation;
   texture-class results are unchanged.
 
+### Fixed
+- RGB label or raw images are rejected with a message instead of being measured as packed
+  colour values.
+- A raw channel whose calibration differs from the label image is rejected (single images
+  and batch preflight); an uncalibrated 3D label image logs a warning.
+- 32-bit label values above 16,777,216, which cannot be stored exactly and could merge
+  objects, are rejected.
+- Batch preflight lists every all-background sample in one message instead of stopping at
+  the first.
+- The "no finite pixels" GLCM range error names the channel and, in a batch, the sample.
+- Progress no longer jumps backwards while fixed GLCM ranges are scanned for several
+  channels, and batch range-scan progress no longer counts channels with manual ranges.
+
+### Documented
+- For single-slice images the `MarginalZ` and `PCThird` curves hold one filled middle bin.
+  They are still written so 2D and 3D tables share their rows; outputs are unchanged.
+- Behaviour for one-voxel, one-line and single-object inputs (blank values, class 1).
+
 ### Deferred
 - True 3D Zernike moments: this release measures each object's maximum-intensity projection.
   Planned for a later version.

@@ -150,8 +150,17 @@ public final class LabelObjects {
                     "Label pixels must be zero or exact positive integers within the supported range; "
                             + "found: " + value);
         }
+        if (exact > MAX_EXACT_LABEL) {
+            throw new IllegalArgumentException("Label value " + (long) exact + " is above "
+                    + "16,777,216, the largest whole number a 32-bit image stores exactly, so "
+                    + "neighbouring labels may have merged. Relabel the objects with smaller "
+                    + "(for example consecutive) labels.");
+        }
         return (int) exact;
     }
+
+    /** 2^24: every integer up to here is exact in a 32-bit float; above it they collide. */
+    public static final int MAX_EXACT_LABEL = 16777216;
 
     /** Validate every pixel without retaining object geometry. */
     public static boolean validate(

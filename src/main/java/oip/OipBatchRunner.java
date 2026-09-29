@@ -308,19 +308,23 @@ public final class OipBatchRunner {
         Map<String, QuantizationRange> ranges =
                 new LinkedHashMap<String, QuantizationRange>(parameters.getQuantizationRanges());
         if (!parameters.getConfig().doGlcm) return ranges;
-        int totalFiles = Math.max(1, pairings.size() * parameters.getRawSpecs().size());
+        // Only channels without a manual range are scanned, so only they share the progress.
+        int scanned = 0;
+        for (OipBatchParameters.RawSpec spec : parameters.getRawSpecs()) {
+            if (!parameters.getQuantizationRanges().containsKey(spec.channelName)) scanned++;
+        }
+        int totalFiles = Math.max(1, pairings.size() * scanned);
         int fileIndex = 0;
         for (Pairing pairing : pairings) {
             for (Map.Entry<String, File> entry : pairing.raw.entrySet()) {
-                if (parameters.getQuantizationRanges().containsKey(entry.getKey())) {
-                    fileIndex++;
-                    continue;
-                }
+                if (parameters.getQuantizationRanges().containsKey(entry.getKey())) continue;
                 ImagePlus image = open(entry.getValue(), entry.getKey());
                 try {
                     final int currentFile = fileIndex;
                     QuantizationRange imageRange = QuantizationRange.scan(
-                            image, parameters.getCancellationToken(),
+                            image, "channel " + entry.getKey() + " of sample " + pairing.key
+                                    + " (" + entry.getValue().getName() + ")",
+                            parameters.getCancellationToken(),
                             new OipParameters.ProgressListener() {
                                 @Override
                                 public void onProgress(double fraction, String message) {
@@ -440,6 +444,8 @@ public final class OipBatchRunner {
 
     private static void preflight(
             OipBatchParameters parameters, List<Pairing> pairings) {
+        List<String> empty = new ArrayList<String>();
+        List<String> uncalibrated = new ArrayList<String>();
         for (int index = 0; index < pairings.size(); index++) {
             Pairing pairing = pairings.get(index);
             checkCancelled(parameters);
@@ -453,11 +459,12 @@ public final class OipBatchRunner {
                             "Label input must be single-channel and single-timepoint for sample: "
                                     + pairing.key);
                 }
+                OipInputChecks.requireNotRgb(labels, "label image of sample " + pairing.key);
+                // Every empty sample is collected so one message lists them all.
                 if (!LabelObjects.validate(labels, parameters.getCancellationToken())) {
-                    throw new IllegalArgumentException(
-                            "Label image contains no positive object labels for sample: "
-                                    + pairing.key);
+                    empty.add(pairing.key);
                 }
+                if (OipInputChecks.uncalibrated3d(labels)) uncalibrated.add(pairing.key);
                 for (Map.Entry<String, File> entry : pairing.raw.entrySet()) {
                     checkCancelled(parameters);
                     ImagePlus raw = open(entry.getValue(), entry.getKey());
@@ -475,6 +482,9 @@ public final class OipBatchRunner {
                                     "Raw image dimensions do not match the label image: "
                                             + entry.getKey() + " for sample " + pairing.key);
                         }
+                        String what = "raw channel " + entry.getKey() + " of sample " + pairing.key;
+                        OipInputChecks.requireNotRgb(raw, what);
+                        OipInputChecks.requireMatchingCalibration(labels, raw, what);
                     } finally {
                         release(raw);
                     }
@@ -483,6 +493,25 @@ public final class OipBatchRunner {
                 release(labels);
             }
         }
+        if (!empty.isEmpty()) {
+            throw new IllegalArgumentException("Label image contains no positive object labels for "
+                    + (empty.size() == 1 ? "sample: " : empty.size() + " samples: ")
+                    + join(empty) + ".");
+        }
+        if (!uncalibrated.isEmpty()) {
+            OipInputChecks.warnUncalibrated3d(uncalibrated.size() == 1
+                    ? "sample " + uncalibrated.get(0)
+                    : uncalibrated.size() + " samples (" + join(uncalibrated) + ")");
+        }
+    }
+
+    private static String join(List<String> values) {
+        StringBuilder out = new StringBuilder();
+        for (String value : values) {
+            if (out.length() > 0) out.append(", ");
+            out.append(value);
+        }
+        return out.toString();
     }
 
     /**

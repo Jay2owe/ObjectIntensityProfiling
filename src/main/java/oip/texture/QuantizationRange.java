@@ -61,6 +61,18 @@ public final class QuantizationRange {
             ImagePlus image,
             OipParameters.CancellationToken cancellation,
             OipParameters.ProgressListener progress) {
+        return scan(image, image == null ? null : image.getTitle(), cancellation, progress);
+    }
+
+    /**
+     * Scan the finite pixel range of {@code image}; {@code description} names the image in the
+     * error raised when it has no finite pixels (for example the channel and sample).
+     */
+    public static QuantizationRange scan(
+            ImagePlus image,
+            String description,
+            OipParameters.CancellationToken cancellation,
+            OipParameters.ProgressListener progress) {
         if (image == null || image.getStack() == null) {
             throw new IllegalArgumentException("Raw image must contain pixels.");
         }
@@ -89,7 +101,9 @@ public final class QuantizationRange {
             }
         }
         if (!Double.isFinite(min)) {
-            throw new IllegalArgumentException("Raw image has no finite pixels: " + image.getTitle());
+            throw new IllegalArgumentException("Raw image has no finite pixels, so no fixed GLCM "
+                    + "range can be set: " + description
+                    + ". Give quant_min and quant_max for this channel or leave GLCM off.");
         }
         return new QuantizationRange(min, max);
     }

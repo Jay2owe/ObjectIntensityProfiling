@@ -249,13 +249,38 @@ its channel. Manual limits are rejected when their numbered raw slot is not
 configured.
 Pairing preview opens each matched image once to reject incompatible
 dimensions or channel/slice/time layouts before quantisation or analysis.
-It also rejects all-background label images before any range scan or output.
+It also rejects all-background label images before any range scan or output,
+listing every empty sample in one message.
 During analysis, completed profile tables and figures are streamed per sample
 into the staging tree; source stacks are flushed immediately, and only compact texture records are
 retained when one global texture-class fit is requested.
 The output folder may sit below an input folder and is excluded from recursive
 discovery. Input folders cannot be the output folder or sit below it, which
 protects source images from plugin-owned stale-sample cleanup.
+
+### Input rules
+
+These apply to single images and to every batch sample:
+
+- Labels and raw channels must be greyscale (8-, 16- or 32-bit). RGB colour
+  images are rejected; split them with *Image > Color > Split Channels*.
+- Distances are measured in the label image's calibration. A raw channel whose
+  calibration (pixel size or unit) differs from the label image is rejected; an
+  uncalibrated raw channel is accepted. A 3D label image without calibration is
+  measured with cubic voxels and a warning is written to the Log window.
+- Labels in a 32-bit image must be whole numbers up to 16,777,216; larger
+  values cannot be stored exactly and are rejected rather than silently merged.
+- For a single-slice (2D) image the `MarginalZ` and `PCThird` curves have only
+  one filled bin, the middle one, because the object has no depth. They are
+  kept so that 2D and 3D tables have the same rows; ignore them for 2D data.
+- A one-voxel or one-line object is measured without error: curves it cannot
+  fill are blank, and shape measures that need spread in two directions
+  (`Elongation`, `Flatness`) are blank.
+- With a single object, aggregate `SEM` is blank, and texture and profile-shape
+  classes put that object in class 1.
+- With GLCM on, a channel with no finite pixels stops the run with a message
+  naming the channel (and sample) unless a manual `quant_min`/`quant_max` pair
+  is given. A constant channel is measured but flagged `GLCMReliable = false`.
 
 ## Java API example
 
