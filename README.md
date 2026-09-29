@@ -100,6 +100,11 @@ then available at `Plugins > Object Intensity Profiling`.
    four raw images with identical width, height and slice count.
 2. Run `Plugins > Object Intensity Profiling`.
 3. Choose **Open images** or **Folder batch**.
+
+<p align="center">
+  <img width="640" alt="Object Intensity Profiling Open images dialog with a label image and a raw channel selected" src="docs/images/oip-open-images-dialog.png">
+</p>
+
 4. Choose the correlation reference raw channel.
 5. Leave texture options disabled unless they are needed; they are the slow
    part of the analysis.
