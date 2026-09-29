@@ -37,6 +37,7 @@ import oip.ObjectIntensityProfiling;
 import oip.OipParameters;
 import oip.ParallelTasks;
 import oip.profile.LabelObjects.ObjectInfo;
+import oip.profile.StackSlices;
 import oip.profile.OipConfig;
 
 import java.util.ArrayList;
@@ -91,17 +92,38 @@ public final class ObjectTextureAnalyzer {
             boolean assignTextureClasses,
             OipParameters.CancellationToken cancellation,
             OipParameters.ProgressListener progress) {
+        if (labels == null || rawByChannel == null || objects == null || config == null) {
+            return new ArrayList<ObjectTextureResult>();
+        }
+        return analyze(StackSlices.of(labels), StackSlices.ofAll(rawByChannel), objects, ranges,
+                config, assignTextureClasses, cancellation, progress);
+    }
+
+    /**
+     * As {@link #analyze(ImagePlus, Map, List, Map, OipConfig, boolean,
+     * OipParameters.CancellationToken, OipParameters.ProgressListener)}, reading slices from
+     * caches built once per run.
+     */
+    public static List<ObjectTextureResult> analyze(
+            final StackSlices labels,
+            Map<String, StackSlices> rawByChannel,
+            List<ObjectInfo> objects,
+            Map<String, QuantizationRange> ranges,
+            final OipConfig config,
+            boolean assignTextureClasses,
+            final OipParameters.CancellationToken cancellation,
+            final OipParameters.ProgressListener progress) {
         List<ObjectTextureResult> results = new ArrayList<ObjectTextureResult>();
         if (labels == null || rawByChannel == null || objects == null || config == null) return results;
 
         final List<TextureJob> jobs = new ArrayList<TextureJob>(
                 rawByChannel.size() * objects.size());
-        for (Map.Entry<String, ImagePlus> partner : rawByChannel.entrySet()) {
+        for (Map.Entry<String, StackSlices> partner : rawByChannel.entrySet()) {
             QuantizationRange range = null;
             if (config.doGlcm) {
                 range = ranges == null ? null : ranges.get(partner.getKey());
                 if (range == null) {
-                    range = QuantizationRange.scan(partner.getValue(), cancellation, null);
+                    range = QuantizationRange.scan(partner.getValue().image(), cancellation, null);
                 }
             }
             for (ObjectInfo object : objects) {
@@ -135,7 +157,7 @@ public final class ObjectTextureAnalyzer {
     }
 
     private static ObjectTextureResult analyzeOne(
-            ImagePlus labels,
+            StackSlices labels,
             TextureJob job,
             OipConfig config,
             OipParameters.CancellationToken cancellation) {
@@ -176,11 +198,11 @@ public final class ObjectTextureAnalyzer {
 
     private static final class TextureJob {
         final String partnerName;
-        final ImagePlus partnerImage;
+        final StackSlices partnerImage;
         final ObjectInfo object;
         final QuantizationRange range;
 
-        TextureJob(String partnerName, ImagePlus partnerImage,
+        TextureJob(String partnerName, StackSlices partnerImage,
                    ObjectInfo object, QuantizationRange range) {
             this.partnerName = partnerName;
             this.partnerImage = partnerImage;

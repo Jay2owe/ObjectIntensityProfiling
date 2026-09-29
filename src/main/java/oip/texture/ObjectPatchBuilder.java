@@ -38,6 +38,7 @@ import oip.ObjectIntensityProfiling;
 import oip.OipParameters;
 import oip.profile.LabelObjects;
 import oip.profile.LabelObjects.ObjectInfo;
+import oip.profile.StackSlices;
 
 /**
  * Builds masked 2D patches directly from a label image and a dimension-matched raw stack.
@@ -57,8 +58,25 @@ public final class ObjectPatchBuilder {
             OipParameters.CancellationToken cancellation) {
         Crop crop = crop(object, labels, paddingPercent);
         int slice = clamp(z, 0, labels.getStackSize() - 1);
-        ImageProcessor labelProcessor = labels.getStack().getProcessor(slice + 1);
-        ImageProcessor rawProcessor = raw.getStack().getProcessor(slice + 1);
+        return slicePatch(object, crop, labels.getStack().getProcessor(slice + 1),
+                raw.getStack().getProcessor(slice + 1), pixelWidth(raw), cancellation);
+    }
+
+    /** As {@link #buildSlice(ObjectInfo, ImagePlus, ImagePlus, int, double,
+     *  OipParameters.CancellationToken)}, reading slices from per-run caches. */
+    public static ObjectPatch buildSlice(
+            ObjectInfo object, StackSlices labels, StackSlices raw, int z, double paddingPercent,
+            OipParameters.CancellationToken cancellation) {
+        Crop crop = crop(object, labels, paddingPercent);
+        int slice = clamp(z, 0, labels.size() - 1);
+        return slicePatch(object, crop, labels.slice(slice), raw.slice(slice),
+                pixelWidth(raw.image()), cancellation);
+    }
+
+    private static ObjectPatch slicePatch(
+            ObjectInfo object, Crop crop, ImageProcessor labelProcessor,
+            ImageProcessor rawProcessor, double pixelWidth,
+            OipParameters.CancellationToken cancellation) {
         float[] intensity = new float[crop.width * crop.height];
         byte[] mask = new byte[intensity.length];
         for (int y = crop.y0; y <= crop.y1; y++) {
@@ -71,7 +89,7 @@ public final class ObjectPatchBuilder {
                 }
             }
         }
-        return new ObjectPatch(intensity, mask, crop.width, crop.height, pixelWidth(raw));
+        return new ObjectPatch(intensity, mask, crop.width, crop.height, pixelWidth);
     }
 
     public static ObjectPatch buildMIP(ObjectInfo object, ImagePlus labels, ImagePlus raw,
@@ -83,15 +101,46 @@ public final class ObjectPatchBuilder {
             ObjectInfo object, ImagePlus labels, ImagePlus raw, double paddingPercent,
             OipParameters.CancellationToken cancellation) {
         Crop crop = crop(object, labels, paddingPercent);
+        int z0 = clamp(object.zmin, 0, labels.getStackSize() - 1);
+        int z1 = clamp(object.zmax, 0, labels.getStackSize() - 1);
+        ImageProcessor[] labelSlices = new ImageProcessor[z1 - z0 + 1];
+        ImageProcessor[] rawSlices = new ImageProcessor[labelSlices.length];
+        for (int z = z0; z <= z1; z++) {
+            checkCancelled(cancellation);
+            labelSlices[z - z0] = labels.getStack().getProcessor(z + 1);
+            rawSlices[z - z0] = raw.getStack().getProcessor(z + 1);
+        }
+        return mip(object, crop, labelSlices, rawSlices, pixelWidth(raw), cancellation);
+    }
+
+    /** As {@link #buildMIP(ObjectInfo, ImagePlus, ImagePlus, double,
+     *  OipParameters.CancellationToken)}, reading slices from per-run caches. */
+    public static ObjectPatch buildMIP(
+            ObjectInfo object, StackSlices labels, StackSlices raw, double paddingPercent,
+            OipParameters.CancellationToken cancellation) {
+        Crop crop = crop(object, labels, paddingPercent);
+        int z0 = clamp(object.zmin, 0, labels.size() - 1);
+        int z1 = clamp(object.zmax, 0, labels.size() - 1);
+        ImageProcessor[] labelSlices = new ImageProcessor[z1 - z0 + 1];
+        ImageProcessor[] rawSlices = new ImageProcessor[labelSlices.length];
+        for (int z = z0; z <= z1; z++) {
+            labelSlices[z - z0] = labels.slice(z);
+            rawSlices[z - z0] = raw.slice(z);
+        }
+        return mip(object, crop, labelSlices, rawSlices, pixelWidth(raw.image()), cancellation);
+    }
+
+    private static ObjectPatch mip(
+            ObjectInfo object, Crop crop, ImageProcessor[] labelSlices,
+            ImageProcessor[] rawSlices, double pixelWidth,
+            OipParameters.CancellationToken cancellation) {
         float[] intensity = new float[crop.width * crop.height];
         byte[] mask = new byte[intensity.length];
         java.util.Arrays.fill(intensity, Float.NEGATIVE_INFINITY);
-        int z0 = clamp(object.zmin, 0, labels.getStackSize() - 1);
-        int z1 = clamp(object.zmax, 0, labels.getStackSize() - 1);
-        for (int z = z0; z <= z1; z++) {
+        for (int s = 0; s < labelSlices.length; s++) {
             checkCancelled(cancellation);
-            ImageProcessor labelProcessor = labels.getStack().getProcessor(z + 1);
-            ImageProcessor rawProcessor = raw.getStack().getProcessor(z + 1);
+            ImageProcessor labelProcessor = labelSlices[s];
+            ImageProcessor rawProcessor = rawSlices[s];
             for (int y = crop.y0; y <= crop.y1; y++) {
                 if ((y & 31) == 0) checkCancelled(cancellation);
                 for (int x = crop.x0; x <= crop.x1; x++) {
@@ -108,7 +157,7 @@ public final class ObjectPatchBuilder {
         for (int i = 0; i < intensity.length; i++) {
             if (mask[i] == 0) intensity[i] = Float.NaN;
         }
-        return new ObjectPatch(intensity, mask, crop.width, crop.height, pixelWidth(raw));
+        return new ObjectPatch(intensity, mask, crop.width, crop.height, pixelWidth);
     }
 
     private static Crop crop(ObjectInfo object, ImagePlus labels, double paddingPercent) {
@@ -118,15 +167,27 @@ public final class ObjectPatchBuilder {
         if (labels == null || labels.getStack() == null) {
             throw new IllegalArgumentException("Label image must contain pixels.");
         }
-        int padX = padding(paddingPercent,
-                object.xmax - object.xmin + 1, labels.getWidth());
-        int padY = padding(paddingPercent,
-                object.ymax - object.ymin + 1, labels.getHeight());
+        return crop(object, labels.getWidth(), labels.getHeight(), paddingPercent);
+    }
+
+    private static Crop crop(ObjectInfo object, StackSlices labels, double paddingPercent) {
+        if (object == null || object.isBoxEmpty()) {
+            throw new IllegalArgumentException("Object must have a bounding box.");
+        }
+        if (labels == null) {
+            throw new IllegalArgumentException("Label image must contain pixels.");
+        }
+        return crop(object, labels.getWidth(), labels.getHeight(), paddingPercent);
+    }
+
+    private static Crop crop(ObjectInfo object, int width, int height, double paddingPercent) {
+        int padX = padding(paddingPercent, object.xmax - object.xmin + 1, width);
+        int padY = padding(paddingPercent, object.ymax - object.ymin + 1, height);
         return new Crop(
                 lower(object.xmin, padX),
-                upper(object.xmax, padX, labels.getWidth()),
+                upper(object.xmax, padX, width),
                 lower(object.ymin, padY),
-                upper(object.ymax, padY, labels.getHeight()));
+                upper(object.ymax, padY, height));
     }
 
     private static int padding(double percent, int extent, int dimension) {

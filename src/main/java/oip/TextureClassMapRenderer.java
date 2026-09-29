@@ -37,6 +37,7 @@ import ij.ImageStack;
 import ij.process.ByteProcessor;
 import ij.process.ImageProcessor;
 import oip.profile.LabelObjects;
+import oip.profile.StackSlices;
 import oip.texture.ObjectTextureResult;
 
 import java.util.LinkedHashMap;
@@ -59,6 +60,13 @@ final class TextureClassMapRenderer {
     static Map<String, ImagePlus> render(
             ImagePlus labels, List<ObjectTextureResult> results,
             OipParameters.CancellationToken cancellation) {
+        return render(StackSlices.of(labels), results, cancellation);
+    }
+
+    /** Renders from a per-run slice cache of the label image. */
+    static Map<String, ImagePlus> render(
+            StackSlices labels, List<ObjectTextureResult> results,
+            OipParameters.CancellationToken cancellation) {
         Map<String, Map<Integer, Integer>> classes =
                 new LinkedHashMap<String, Map<Integer, Integer>>();
         for (ObjectTextureResult result : results) {
@@ -77,9 +85,9 @@ final class TextureClassMapRenderer {
         try {
             for (Map.Entry<String, Map<Integer, Integer>> entry : classes.entrySet()) {
                 ImageStack out = new ImageStack(labels.getWidth(), labels.getHeight());
-                for (int z = 1; z <= labels.getStackSize(); z++) {
+                for (int z = 1; z <= labels.size(); z++) {
                     checkCancelled(cancellation);
-                    ImageProcessor source = labels.getStack().getProcessor(z);
+                    ImageProcessor source = labels.slice(z - 1);
                     ByteProcessor target = new ByteProcessor(
                             labels.getWidth(), labels.getHeight());
                     for (int y = 0; y < labels.getHeight(); y++) {
@@ -96,7 +104,7 @@ final class TextureClassMapRenderer {
                 ImagePlus image = new ImagePlus(
                         entry.getKey() + "_Texture_Classes", out);
                 try {
-                    image.setCalibration(labels.getCalibration().copy());
+                    image.setCalibration(labels.image().getCalibration().copy());
                     maps.put(entry.getKey(), image);
                 } catch (RuntimeException error) {
                     close(image);

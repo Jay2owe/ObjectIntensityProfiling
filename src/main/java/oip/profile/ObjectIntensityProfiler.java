@@ -37,7 +37,6 @@ import oip.ObjectIntensityProfiling;
 import oip.OipParameters;
 import oip.ParallelTasks;
 import ij.ImagePlus;
-import ij.ImageStack;
 import ij.measure.Calibration;
 import ij.process.ImageProcessor;
 
@@ -90,16 +89,38 @@ public final class ObjectIntensityProfiler {
                                                     OipConfig cfg,
                                                     OipParameters.CancellationToken cancellation,
                                                     OipParameters.ProgressListener progress) {
-        List<ObjectProfileResult> out = new ArrayList<ObjectProfileResult>();
         if (sourceLabels == null || sourceLabels.getStack() == null || sourceObjects == null
+                || rawByChannel == null || cfg == null || !cfg.anyProfileEnabled()) {
+            return new ArrayList<ObjectProfileResult>();
+        }
+        return profile(StackSlices.of(sourceLabels), StackSlices.ofAll(rawByChannel),
+                sourceObjects, sourceName, referenceChannel, cal, cfg, cancellation, progress);
+    }
+
+    /**
+     * Same as {@link #profile(ImagePlus, Map, List, String, String, Calibration, OipConfig,
+     * OipParameters.CancellationToken, OipParameters.ProgressListener)} but reads slices from
+     * caches built once per run, so each slice is fetched once rather than once per object.
+     */
+    public static List<ObjectProfileResult> profile(StackSlices labelSlices,
+                                                    Map<String, StackSlices> rawByChannel,
+                                                    List<ObjectInfo> sourceObjects,
+                                                    String sourceName,
+                                                    String referenceChannel,
+                                                    Calibration cal,
+                                                    OipConfig cfg,
+                                                    OipParameters.CancellationToken cancellation,
+                                                    OipParameters.ProgressListener progress) {
+        List<ObjectProfileResult> out = new ArrayList<ObjectProfileResult>();
+        if (labelSlices == null || sourceObjects == null
                 || rawByChannel == null || cfg == null || !cfg.anyProfileEnabled()) {
             return out;
         }
 
-        final ImageStack labelStack = sourceLabels.getStack();
-        final int w = sourceLabels.getWidth();
-        final int h = sourceLabels.getHeight();
-        final int nz = labelStack.getSize();
+        final StackSlices labelStack = labelSlices;
+        final int w = labelSlices.getWidth();
+        final int h = labelSlices.getHeight();
+        final int nz = labelSlices.size();
         final double pw = cal != null && cal.pixelWidth > 0 ? cal.pixelWidth : 1.0;
         final double ph = cal != null && cal.pixelHeight > 0 ? cal.pixelHeight : 1.0;
         final double pd = cal != null && cal.pixelDepth > 0 ? cal.pixelDepth : 1.0;
@@ -138,7 +159,7 @@ public final class ObjectIntensityProfiler {
     }
 
     private static ObjectProfileResult profileOne(ObjectInfo obj,
-                                                  ImageStack labelStack, Map<String, ImagePlus> rawByChannel,
+                                                  StackSlices labelStack, Map<String, StackSlices> rawByChannel,
                                                   List<String> partners, String sourceName,
                                                   String referenceChannel,
                                                   int w, int h, int nz, double pw, double ph, double pd,
@@ -170,7 +191,7 @@ public final class ObjectIntensityProfiler {
         if (objectRegion) {
             for (int z = obj.zmin; z <= obj.zmax; z++) {
                 checkCancelled(cancellation);
-                ImageProcessor lp = labelStack.getProcessor(z + 1);
+                ImageProcessor lp = labelStack.slice(z);
                 for (int y = obj.ymin; y <= obj.ymax; y++) {
                     if ((y & 31) == 0) checkCancelled(cancellation);
                     for (int x = obj.xmin; x <= obj.xmax; x++) {
@@ -205,7 +226,7 @@ public final class ObjectIntensityProfiler {
             long nObj = 0;
             for (int z = z0; z <= z1; z++) {
                 checkCancelled(cancellation);
-                ImageProcessor lp = labelStack.getProcessor(z + 1);
+                ImageProcessor lp = labelStack.slice(z);
                 double dz = (z - cz) * pd;
                 for (int y = y0; y <= y1; y++) {
                     if ((y & 31) == 0) checkCancelled(cancellation);
@@ -231,7 +252,7 @@ public final class ObjectIntensityProfiler {
                 if (objectRegion) {
                     for (int z = obj.zmin; z <= obj.zmax; z++) {
                         checkCancelled(cancellation);
-                        ImageProcessor lp = labelStack.getProcessor(z + 1);
+                        ImageProcessor lp = labelStack.slice(z);
                         for (int y = obj.ymin; y <= obj.ymax; y++) {
                             if ((y & 31) == 0) checkCancelled(cancellation);
                             for (int x = obj.xmin; x <= obj.xmax; x++) {
@@ -265,15 +286,15 @@ public final class ObjectIntensityProfiler {
         for (int p = 0; p < partners.size(); p++) acc[p] = new PAcc(cfg);
         int srcIdx = partners.indexOf(referenceChannel);
         double[] srcSkew = new double[3]; // intensity-weighted source projection sign per PC axis
+        final boolean needDistance = cfg.doRadial || cfg.doShell;
 
         // --- Main pass over region voxels. ---
         for (int z = z0; z <= z1; z++) {
             checkCancelled(cancellation);
-            ImageProcessor lp = labelStack.getProcessor(z + 1);
+            ImageProcessor lp = labelStack.slice(z);
             for (int p = 0; p < partners.size(); p++) {
-                ImagePlus ip = rawByChannel.get(partners.get(p));
-                partnerProc[p] = ip != null && ip.getStack() != null && z < ip.getStack().getSize()
-                        ? ip.getStack().getProcessor(z + 1) : null;
+                StackSlices raw = rawByChannel.get(partners.get(p));
+                partnerProc[p] = raw != null && z < raw.size() ? raw.slice(z) : null;
             }
             double dz = (z - cz) * pd;
             for (int y = y0; y <= y1; y++) {
@@ -284,19 +305,28 @@ public final class ObjectIntensityProfiler {
                     if (cfg.region == OipConfig.Region.OBJECT_VOXELS && lab != obj.label) continue;
 
                     double dx = (x - cx) * pw;
-                    double r = Math.sqrt(dx * dx + dy * dy + dz * dz);
-                    double rNorm = r / rMax;
-                    int radialBin = bin(rNorm, cfg.radialBins);
-                    int shellBin = bin(rNorm, cfg.shells);
-                    double xNorm = (x - cx) < 0 ? (x - cx) / dnXneg : (x - cx) / dnXpos;
-                    double yNorm = (y - cy) < 0 ? (y - cy) / dnYneg : (y - cy) / dnYpos;
-                    double zNorm = (z - cz) < 0 ? (z - cz) / dnZneg : (z - cz) / dnZpos;
-                    int mxBin = binSigned(xNorm, cfg.resampleN);
-                    int myBin = binSigned(yNorm, cfg.resampleN);
-                    int mzBin = binSigned(zNorm, cfg.resampleN);
-                    double theta = Math.atan2(dy, dx);
-                    if (theta < 0) theta += TWO_PI;
-                    int angBin = bin(theta / TWO_PI, cfg.angularBins);
+                    int radialBin = 0, shellBin = 0;
+                    if (needDistance) {
+                        double r = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                        double rNorm = r / rMax;
+                        radialBin = bin(rNorm, cfg.radialBins);
+                        shellBin = bin(rNorm, cfg.shells);
+                    }
+                    int mxBin = 0, myBin = 0, mzBin = 0;
+                    if (cfg.doMarginal) {
+                        double xNorm = (x - cx) < 0 ? (x - cx) / dnXneg : (x - cx) / dnXpos;
+                        double yNorm = (y - cy) < 0 ? (y - cy) / dnYneg : (y - cy) / dnYpos;
+                        double zNorm = (z - cz) < 0 ? (z - cz) / dnZneg : (z - cz) / dnZpos;
+                        mxBin = binSigned(xNorm, cfg.resampleN);
+                        myBin = binSigned(yNorm, cfg.resampleN);
+                        mzBin = binSigned(zNorm, cfg.resampleN);
+                    }
+                    int angBin = 0;
+                    if (cfg.doAngular) {
+                        double theta = Math.atan2(dy, dx);
+                        if (theta < 0) theta += TWO_PI;
+                        angBin = bin(theta / TWO_PI, cfg.angularBins);
+                    }
                     double proj1 = 0, proj2 = 0, proj3 = 0;
                     int pcMajBin = 0, pcMinBin = 0, pcThrBin = 0;
                     if (cfg.doPrincipalAxis) {

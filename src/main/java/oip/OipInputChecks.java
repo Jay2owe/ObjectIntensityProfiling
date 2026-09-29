@@ -35,8 +35,12 @@ package oip;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.measure.Calibration;
+import oip.profile.StackSlices;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Input rules shared by single-image runs and batch preflight: pixel types the measurements can
@@ -88,6 +92,22 @@ final class OipInputChecks {
         IJ.log("Object Intensity Profiling: " + what + " is a 3D label image without "
                 + "calibration, so voxels are treated as cubes. If the Z step differs from the "
                 + "pixel size, set it with Image > Properties.");
+    }
+
+    /**
+     * Logs each virtual stack that the per-run slice cache has read into memory, with its size,
+     * so a user with a very large virtual stack knows where the memory went.
+     */
+    static void logInMemoryCopies(StackSlices labels, Map<String, StackSlices> raws) {
+        List<StackSlices> all = new ArrayList<StackSlices>();
+        all.add(labels);
+        all.addAll(raws.values());
+        for (StackSlices slices : all) {
+            if (slices == null || !slices.isVirtual()) continue;
+            IJ.log(String.format(Locale.ROOT, "Object Intensity Profiling: virtual stack \"%s\" "
+                    + "was read into memory once for this run (%.1f MB).",
+                    slices.image().getTitle(), slices.bytes() / (1024.0 * 1024.0)));
+        }
     }
 
     private static boolean close(double left, double right) {

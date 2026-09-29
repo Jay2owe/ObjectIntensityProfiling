@@ -31,6 +31,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Texture classes and profile-shape classes share one deterministic k-means implementation;
   texture-class results are unchanged.
 
+### Performance
+- Each run now fetches every image slice once and shares it with all workers, instead of asking
+  ImageJ for the slice again for every object (ImageJ rescans a whole slice on each request when
+  the displayed slice is blank). Unused per-voxel maths is skipped when a profile family is off.
+  Outputs are bit-identical. Synthetic benchmark (`oip.bench.OipBenchmark`, 1,024 objects, two
+  channels; serial / eight workers):
+
+  | Image and measurement | Before | After |
+  |---|---|---|
+  | 512 x 512 x 24, profiles | 12.5 s / 2.7 s | 1.1 s / 0.33 s |
+  | 512 x 512 x 24, GLCM | 8.4 s / 1.7 s | 2.0 s / 0.49 s |
+  | 512 x 512 x 24, texture classes | 6.7 s / 1.5 s | 2.0 s / 0.56 s |
+  | 2048 x 2048 x 10, profiles | 157 s / 24.7 s | 1.9 s / 0.83 s |
+
+- A virtual stack is read into memory once per run (and logged with its size) rather than read
+  from disk again for every object.
+
 ### Fixed
 - RGB label or raw images are rejected with a message instead of being measured as packed
   colour values.

@@ -42,6 +42,7 @@ import oip.profile.ObjectProfileResult;
 import oip.profile.OipConfig;
 import oip.profile.ProfileAggregator;
 import oip.profile.ProfileShapeClassifier;
+import oip.profile.StackSlices;
 import oip.texture.ObjectTextureAnalyzer;
 import oip.texture.ObjectTextureResult;
 import oip.texture.QuantizationRange;
@@ -107,11 +108,17 @@ public final class ObjectIntensityProfiling {
         }
         checkCancelled(parameters);
 
+        // Fetch every slice once for the whole run; the per-object loops then share them read-only.
+        StackSlices labelSlices = StackSlices.of(parameters.getLabelImage());
+        Map<String, StackSlices> rawSlices = StackSlices.ofAll(parameters.getRawImages());
+        OipInputChecks.logInMemoryCopies(labelSlices, rawSlices);
+        checkCancelled(parameters);
+
         progress(parameters, 0.12, "Computing intensity profiles");
         List<ObjectProfileResult> profiles = config.anyProfileEnabled()
                 ? ObjectIntensityProfiler.profile(
-                        parameters.getLabelImage(),
-                        parameters.getRawImages(),
+                        labelSlices,
+                        rawSlices,
                         objects,
                         parameters.getSourceName(),
                         parameters.getReferenceChannel(),
@@ -148,7 +155,7 @@ public final class ObjectIntensityProfiling {
         if (config.anyTextureFamilyEnabled()) {
             progress(parameters, 0.60, "Computing texture measurements");
             textures = ObjectTextureAnalyzer.analyze(
-                    parameters.getLabelImage(), parameters.getRawImages(),
+                    labelSlices, rawSlices,
                     objects, ranges, config,
                     assignTextureClasses,
                     parameters.getCancellationToken(),
@@ -170,7 +177,7 @@ public final class ObjectIntensityProfiling {
                     config.profileClasses, parameters.getCancellationToken());
         }
         Map<String, ImagePlus> classMaps = parameters.isSaveClassMaps()
-                ? TextureClassMapRenderer.render(parameters.getLabelImage(), textures,
+                ? TextureClassMapRenderer.render(labelSlices, textures,
                         parameters.getCancellationToken())
                 : new LinkedHashMap<String, ImagePlus>();
 

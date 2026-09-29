@@ -489,3 +489,33 @@ Per-object profiles and independent `(raw channel, object)` texture measurements
 indexed workers. Texture-class fitting remains a serial barrier after all feature vectors are ready.
 The automatic limit is eight workers; set the JVM system property `oip.parallelism` to a positive
 integer to override it, or to `1` for the serial reference path.
+
+Each run fetches every slice of the label image and of each raw image once, before the workers
+start, and the workers share those slices read-only. A virtual stack is therefore read from disk
+once per run and held in memory for that run; the Log names each virtual stack read this way and
+its size. Open a virtual stack normally, or use a smaller crop, if that copy will not fit in memory.
+
+### Performance
+
+Synthetic benchmark (`oip.bench.OipBenchmark` in the test sources; two float raw channels,
+1,024 spherical objects, JDK 21, 16 logical processors, median of three timed runs; the
+2048 x 2048 "before" figures are single runs). "Default" uses the automatic worker count (eight).
+
+| Image and measurement | Before 0.3.0, serial | 0.3.0, serial | Before 0.3.0, default | 0.3.0, default |
+|---|---|---|---|---|
+| 512 x 512 x 24, profiles | 12.5 s | 1.1 s | 2.7 s | 0.33 s |
+| 512 x 512 x 24, GLCM | 8.4 s | 2.0 s | 1.7 s | 0.49 s |
+| 512 x 512 x 24, texture classes | 6.7 s | 2.0 s | 1.5 s | 0.56 s |
+| 2048 x 2048 x 10, profiles | 157 s | 1.9 s | 24.7 s | 0.83 s |
+
+Earlier versions asked ImageJ for each slice again for every object. When the displayed slice of
+an image is blank, as the first slice of most 3D label stacks is, ImageJ rescans the whole slice on
+every such request, so the cost grew with slice size times object count. Outputs are unchanged.
+
+To rerun the benchmark, build with `sh ./mvnw -DskipTests package`, then run it against the
+plugin jar and the ImageJ jar from your Maven repository (use `:` instead of `;` on macOS and
+Linux). The arguments are `small` or `large` and a comma list of `profiles`, `glcm`, `classes`:
+
+```sh
+java -cp "target/Object_Intensity_Profiling-<version>.jar;target/test-classes;<path to ij-1.54p.jar>" oip.bench.OipBenchmark small profiles,glcm,classes
+```
