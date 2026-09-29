@@ -38,15 +38,15 @@ jobs:
       IMAGEJ_UPDATE_SITE_URL: "https://sites.imagej.net/Object-Intensity-Profiling/"
       GH_TOKEN: ${{ github.token }}
       # Pinned to the GitHub Release: the upload uses that exact jar, not a fresh build.
-      RELEASE_TAG: "v0.3.0"
-      RELEASE_COMMIT: "8a218b26e6f1d4af7f295c7bc9a1c425d2db6fb3"
-      RELEASE_SHA256: "37C1025E6FFA49A15CBAC19FA1A431F61E555B23B607C509AAC7188A90F55A9A"
+      RELEASE_TAG: "v0.3.1"
+      RELEASE_COMMIT: "a00489f3d5b05eee48fd83945d5ea7963d7d3710"
+      RELEASE_SHA256: "B37AFFDEAA9A0DC72153665A9EA333BB6B3125583A445EEC1A4ED2542F833AFF"
       OC3D_CORE_REPO: "Jay2owe/oc3d-core"
       OC3D_CORE_REF: "v0.1.0"
       IMAGEJ_UPLOAD_USER: ${{ secrets.IMAGEJ_UPLOAD_USER }}
       IMAGEJ_UPLOAD_PASSWORD: ${{ secrets.IMAGEJ_UPLOAD_PASSWORD }}
       DEFAULT_UPLOAD_USER: ""
-      ARTIFACT_GLOB: "release-artifact/Object_Intensity_Profiling-0.3.0.jar"
+      ARTIFACT_GLOB: "release-artifact/Object_Intensity_Profiling-0.3.1.jar"
       INSTALL_DIR: "plugins"
       ARTIFACT_NAME: ""
       REPLACE_GLOB: "plugins/Object_Intensity_Profiling-*.jar"
@@ -56,8 +56,10 @@ jobs:
       CLEAR_STALE_LOCK: ${{ github.event_name == 'workflow_dispatch' && inputs.clear_stale_lock || 'false' }}
 
     steps:
-      - name: Check out repository
+      - name: Check out release tag
         uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Check out oc3d-core
         uses: actions/checkout@v7
@@ -124,13 +126,13 @@ jobs:
           mkdir -p release-artifact
           gh release download "$RELEASE_TAG" \
             --repo "$GITHUB_REPOSITORY" \
-            --pattern "Object_Intensity_Profiling-0.3.0.jar" \
+            --pattern "Object_Intensity_Profiling-0.3.1.jar" \
             --dir release-artifact
 
       - name: Verify canonical release artifact
         shell: bash
         run: |
-          JAR="release-artifact/Object_Intensity_Profiling-0.3.0.jar"
+          JAR="release-artifact/Object_Intensity_Profiling-0.3.1.jar"
           test -f "$JAR"
           python - "$JAR" "$RELEASE_SHA256" "$RELEASE_COMMIT" <<'PY'
           import hashlib
@@ -171,7 +173,7 @@ jobs:
           print(f"Canonical release SHA-256 verified: {actual_hash}")
           PY
 
-          BUILT="target/Object_Intensity_Profiling-0.3.0.jar"
+          BUILT="target/Object_Intensity_Profiling-0.3.1.jar"
           echo "Fresh verification build: $(sha256sum "$BUILT")"
 
       - name: Download Fiji
@@ -290,5 +292,5 @@ jobs:
         with:
           name: object-intensity-profiling-uploaded-artifact
           path: |
-            release-artifact/Object_Intensity_Profiling-0.3.0.jar
+            release-artifact/Object_Intensity_Profiling-0.3.1.jar
           if-no-files-found: error

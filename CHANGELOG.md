@@ -3,6 +3,8 @@
 All notable changes to Object Intensity Profiling are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## Unreleased
+
 ## 0.3.1 - 2026-09-29
 
 Found by the first run of the dialogs in a real (non-headless) Fiji and by a review of the
