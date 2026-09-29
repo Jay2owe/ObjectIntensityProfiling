@@ -52,6 +52,8 @@ off by default; with default settings every existing output is byte-identical to
   from disk again for every object.
 
 ### Fixed
+- The jar manifest no longer lists `ij-1.54p.jar` and `oc3d-core-0.1.0.jar` on its
+  `Class-Path`; the core was already inside the jar.
 - RGB label or raw images are rejected with a message instead of being measured as packed
   colour values.
 - A raw channel whose calibration differs from the label image is rejected (single images
