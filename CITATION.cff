@@ -16,8 +16,8 @@ authors:
 repository-code: "https://github.com/Jay2owe/ObjectIntensityProfiling"
 url: "https://github.com/Jay2owe/ObjectIntensityProfiling"
 license: BSD-3-Clause
-version: "0.2.0"
-date-released: "2026-08-20"
+version: "0.3.0"
+date-released: "2026-09-29"
 keywords:
   - imagej
   - fiji

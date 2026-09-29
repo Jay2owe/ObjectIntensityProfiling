@@ -1,5 +1,8 @@
 # Object Intensity Profiling
 
+[![Build](https://github.com/Jay2owe/ObjectIntensityProfiling/actions/workflows/build.yml/badge.svg)](https://github.com/Jay2owe/ObjectIntensityProfiling/actions/workflows/build.yml)
+[![Licence: BSD-3-Clause](https://img.shields.io/badge/licence-BSD--3--Clause-blue.svg)](LICENSE)
+
 Object Intensity Profiling is an ImageJ/Fiji plugin for measuring where raw
 signal lies inside each object in a label image. It provides fixed-length
 radial, image-axis, principal-axis, angular and shell profiles; per-object
@@ -36,7 +39,32 @@ case-insensitive filesystem.
   aggregate figures and class-coloured maps.
 - Interactive, ImageJ macro and headless Java entry points.
 
-## Build
+### Which measurement answers which question
+
+| Question | Measurement |
+|---|---|
+| Is the signal concentrated in the centre or at the edge of each object? | Radial profile, shell profile |
+| Is the signal lopsided along the image axes or the object's own long axis? | Marginal X/Y/Z and principal-axis profiles |
+| Does the signal form a complete ring or only an arc? | Angular profile and ring completeness |
+| Do two channels rise and fall together inside each object? | Pearson, overlap and Manders M1/M2 |
+| Is the signal smooth, grainy or striped inside each object? | GLCM features, texture classes |
+| What 2D shape does the signal make inside each object? | Zernike moments |
+| Which objects share the same profile shape? | Profile-shape classes |
+
+## Install from the Fiji update site
+
+In Fiji, choose **Help > Update... > Manage update sites**, add an update site
+named `Object-Intensity-Profiling` with this URL, and enable it:
+
+`https://sites.imagej.net/Object-Intensity-Profiling/`
+
+Apply the changes and restart Fiji. The command is then available at
+`Plugins > Object Intensity Profiling`.
+
+Requirements: Fiji (ImageJ 1.54 or newer) with Java 8 or newer. No other update
+sites are needed; the shared `oc3d-core` classes are inside the plugin jar.
+
+## Build from source
 
 Object Intensity Profiling uses `oc3d-core` 0.1.0 for shared recursive
 regular-expression batch discovery. The core is not published to a Maven
@@ -59,14 +87,14 @@ mvnw.cmd clean verify
 ```
 
 The plugin JAR is written to
-`target/Object_Intensity_Profiling-0.2.0.jar`.
+`target/Object_Intensity_Profiling-0.3.0.jar`.
 The reachable core classes are included under `oip.internal.core`; users copy
 only the plugin JAR into Fiji and do not install the core separately.
 
 Copy that JAR into Fiji's `plugins/` folder and restart Fiji. The command is
 then available at `Plugins > Object Intensity Profiling`.
 
-## Interactive use
+## Usage
 
 1. Open one label image (or keep an ImageJ ROI set file to hand) and one to
    four raw images with identical width, height and slice count.
@@ -474,16 +502,7 @@ and starts Fiji's bundled Java directly. To compare the Fiji run's 2D tables
 with the same run under JUnit, keep the work folder (`SMOKE_DIR=...`) and run
 `sh ./mvnw -B -q test -Dtest=SmokeParityTest -Doip.smoke.dir=<SMOKE_DIR>`.
 
-## Citation
-
-Malcolm, J. (2026). *Object Intensity Profiling* (v0.2.0) [Software].
-GitHub. https://github.com/Jay2owe/ObjectIntensityProfiling
-
-## Licence
-
-BSD 3-Clause. See `LICENSE`; attribution is in `NOTICE`. Both ship inside the
-jar under `META-INF/`.
-## Parallel execution
+## Parallel execution and performance
 
 Per-object profiles and independent `(raw channel, object)` texture measurements use deterministic
 indexed workers. Texture-class fitting remains a serial barrier after all feature vectors are ready.
@@ -519,3 +538,28 @@ Linux). The arguments are `small` or `large` and a comma list of `profiles`, `gl
 ```sh
 java -cp "target/Object_Intensity_Profiling-<version>.jar;target/test-classes;<path to ij-1.54p.jar>" oip.bench.OipBenchmark small profiles,glcm,classes
 ```
+
+## Citing
+
+If you use Object Intensity Profiling, please cite it (see also `CITATION.cff`):
+
+Malcolm, J. (2026). *Object Intensity Profiling* (v0.3.0) [Software].
+GitHub. https://github.com/Jay2owe/ObjectIntensityProfiling
+
+## Acknowledgements
+
+Developed by Jamie Malcolm in the [Brancaccio Lab](https://www.ukdri.ac.uk/labs/brancaccio-lab)
+at the [UK Dementia Research Institute](https://ukdri.ac.uk/centres/imperial),
+Imperial College London.
+
+This work was supported by the UK Dementia Research Institute,
+which receives its core funding from the UK Medical Research Council,
+the Alzheimer's Society, and Alzheimer's Research UK.
+
+Built on the [Fiji](https://fiji.sc/) / [ImageJ](https://imagej.net/)
+ecosystem; we thank the SciJava community for the platform.
+
+## Licence
+
+BSD 3-Clause. See `LICENSE`; attribution is in `NOTICE`. Both ship inside the
+jar under `META-INF/`.

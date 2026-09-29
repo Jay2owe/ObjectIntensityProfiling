@@ -1,0 +1,16 @@
+* text=auto
+*.java text eol=lf
+*.md text eol=lf
+*.xml text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.cff text eol=lf
+*.properties text eol=lf
+*.sh text eol=lf
+*.ijm text eol=lf
+mvnw text eol=lf
+*.cmd text eol=crlf
+*.tif binary
+*.tiff binary
+*.png binary
+*.jar binary

@@ -3,7 +3,10 @@
 All notable changes to Object Intensity Profiling are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## Unreleased
+## 0.3.0 - 2026-09-29
+
+First release on the Fiji update site (`Object-Intensity-Profiling`). New measurements are
+off by default; with default settings every existing output is byte-identical to 0.2.0.
 
 ### Added
 - Golden output digests (`src/test/resources/oip/golden/digests.txt`) guarding every CSV and
@@ -60,7 +63,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - The "no finite pixels" GLCM range error names the channel and, in a batch, the sample.
 - Progress no longer jumps backwards while fixed GLCM ranges are scanned for several
   channels, and batch range-scan progress no longer counts channels with manual ranges.
-
 - A macro that passes a bad option (or is cancelled) now stops with a one-line message.
   Previously, in headless Fiji, ImageJ printed a Java stack trace and the macro carried on with
   its next line.
@@ -74,10 +76,35 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `src/test/fiji/run-smoke.sh` runs the packaged plugin headless inside a disposable Fiji;
   `SmokeParityTest` checks that Fiji and the unit-test build give identical 2D tables.
 
-### Deferred
+### Re-scoped to a later version
+- 3D GLCM: co-occurrence is measured per 2D slice and combined per object. A true 3D
+  co-occurrence matrix needs 13 directions and new reliability rules, so it waits for a later
+  version.
+- 3D texture classes: the Gabor/wavelet features are computed on each object's 2D
+  maximum-intensity projection; 3D filter banks would change every class assignment.
 - True 3D Zernike moments: this release measures each object's maximum-intensity projection.
-  Planned for a later version.
+  3D moments need a different basis (Zernike polynomials on the sphere) and output layout.
+- Multi-source-channel profiling: each run profiles the partners of one label source (the first
+  build plan left this out); several sources can be profiled by running once per label image.
 - ROI inputs in folder batches: pairing one ROI set with each sample needs its own file-name
   pattern design, so batches keep label-image input in this version.
 - Profile-shape classes from several curve types at once (for example radial and shell
-  concatenated). This release clusters one curve type per run.
+  concatenated): this release clusters one curve type per run, which keeps each class easy to
+  read.
+
+## 0.2.0 - never published
+
+Built in the repository history (commit `b7aa10f`) but never tagged or released on an update
+site or GitHub Releases; `CITATION.cff` briefly named it with a 2026-08-20 date.
+
+### Added
+- Radial, marginal X/Y/Z, principal-axis, angular and concentric-shell intensity profiles.
+- Object-mask sampling by default, with a padded bounding-box option.
+- Per-object Pearson correlation, overlap coefficient, and Manders M1/M2.
+- Optional 2D GLCM measurements (contrast, energy, correlation, entropy, homogeneity) and
+  eight-feature Gabor/wavelet texture classes with deterministic k-means.
+- Fixed GLCM quantisation per channel across a folder batch, with optional manual limits.
+- Per-object CSV files, object-weighted aggregate curves with standard error, aggregate
+  figures and class-coloured maps.
+- Interactive, ImageJ macro, folder-batch and headless Java entry points; shared batch
+  discovery from `oc3d-core` 0.1.0, shaded into the plugin jar.
