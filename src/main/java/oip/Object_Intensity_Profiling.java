@@ -90,6 +90,7 @@ public final class Object_Intensity_Profiling implements PlugIn {
             } else runInteractive();
         } catch (ObjectIntensityProfiling.AnalysisCancelledException cancelled) {
             IJ.log(TITLE + ": " + cancelled.getMessage());
+            IJ.showProgress(1.0); // clears the part-filled progress bar
             IJ.showStatus(cancelled.getMessage());
             boolean inMacro = insideMacro();
             RuntimeException failure = failure(cancelled, headless, inMacro);
@@ -628,7 +629,13 @@ public final class Object_Intensity_Profiling implements PlugIn {
         }
     }
 
+    /**
+     * Show the tables, figures and class maps of a finished run. The run is complete (and
+     * saved, with auto-save) by now, so an Escape pressed late must not stop the display half
+     * way: the figures are built first, without the run's cancellation token.
+     */
     private static void show(OipResult result) {
+        List<ImagePlus> figures = aggregateFigures(result);
         ResultsTable summaries = OipTables.summaries(result);
         if (summaries.size() > 0) summaries.show("Object Intensity Profiles");
         OipConfig config = result.getParameters().getConfig();
@@ -640,18 +647,25 @@ public final class Object_Intensity_Profiling implements PlugIn {
         if (profileClasses.size() > 0) profileClasses.show("Object Profile Classes");
         ResultsTable zernike = OipTables.zernike(result);
         if (zernike.size() > 0) zernike.show("Object Zernike");
-        for (ImagePlus figure : aggregateFigures(result)) figure.show();
+        for (ImagePlus figure : figures) figure.show();
         for (ImagePlus map : result.getClassMaps().values()) map.show();
     }
 
+    /**
+     * The aggregate plots of a finished run: the same set auto-save writes to {@code Figures/},
+     * including the profile-shape class-mean plots. Not cancellable (see {@link #show}).
+     */
     static List<ImagePlus> aggregateFigures(OipResult result) {
         ProfileAggregator aggregate = new ProfileAggregator();
         for (ObjectProfileResult profile : result.getProfiles()) {
-            aggregate.addAll(profile, result.getParameters().getGroupKey(),
-                    result.getParameters().getCancellationToken());
+            aggregate.addAll(profile, result.getParameters().getGroupKey(), null);
         }
-        return ObjectProfileFigureWriter.createFigures(
-                aggregate, null, result.getParameters().getCancellationToken());
+        OipConfig config = result.getParameters().getConfig();
+        if (config.doProfileClasses && result.getProfileClasses() != null) {
+            aggregate.merge(ProfileShapeClassifier.classCurves(
+                    result.getProfileClasses(), config.profileClassFamily, null));
+        }
+        return ObjectProfileFigureWriter.createFigures(aggregate, null, null);
     }
 
     private static ImagePlus roiLabels(ImagePlus reference, String path) {

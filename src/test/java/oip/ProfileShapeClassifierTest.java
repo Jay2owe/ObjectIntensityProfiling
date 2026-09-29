@@ -142,6 +142,42 @@ public class ProfileShapeClassifierTest {
         }
     }
 
+    /**
+     * GUI check (0.3.0): the interactive plots left out the class-mean figures that auto-save
+     * writes, and an Escape pressed after the run had saved its files stopped the display half
+     * way (tables shown, plots missing, status "cancelled").
+     */
+    @Test
+    public void interactiveFiguresMatchTheSavedFiguresAndIgnoreALateEscape() throws Exception {
+        File output = temporary.newFolder("shown");
+        final boolean[] escape = {false};
+        OipResult result = ObjectIntensityProfiling.run(OipParameters.builder(spheres())
+                .addRawImage("Signal", raw(0, 1.0))
+                .config(config(2, ProfileShapeClassifier.Family.RADIAL))
+                .saveFigures(true).autoSave(output)
+                .cancellationToken(new OipParameters.CancellationToken() {
+                    @Override
+                    public boolean isCancelled() {
+                        return escape[0];
+                    }
+                }).build());
+        escape[0] = true; // Escape pressed after the results were saved
+
+        List<ImagePlus> shown = Object_Intensity_Profiling.aggregateFigures(result);
+        List<String> saved = new ArrayList<String>();
+        for (String name : new File(output, "Figures").list()) {
+            if (!name.startsWith(".")) saved.add(name);
+        }
+        try {
+            assertEquals("every saved figure is shown: " + saved, saved.size(), shown.size());
+        } finally {
+            for (ImagePlus figure : shown) {
+                figure.close();
+                figure.flush();
+            }
+        }
+    }
+
     @Test
     public void singleImageTablesAreWrittenOnlyWhenEnabledAndRemovedOnADisabledRerun()
             throws Exception {
