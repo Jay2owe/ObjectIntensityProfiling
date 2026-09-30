@@ -54,9 +54,9 @@ case-insensitive filesystem.
 ## Install from the Fiji update site
 
 In Fiji, choose **Help > Update... > Manage update sites**, add an update site
-named `Object-Intensity-Profiling` with this URL, and enable it:
+named `ObjectIntensityProfiling` with this URL, and enable it:
 
-`https://sites.imagej.net/Object-Intensity-Profiling/`
+`https://sites.imagej.net/ObjectIntensityProfiling/`
 
 Apply the changes and restart Fiji. The command is then available at
 `Plugins > Object Intensity Profiling`.
