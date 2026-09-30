@@ -14,7 +14,7 @@ on:
         type: boolean
         default: false
       confirm_live_upload:
-        description: "Required when dry_run=false: type UPLOAD ObjectIntensityProfiling"
+        description: "Required when dry_run=false: type UPLOAD Object-Intensity-Profiling"
         required: false
         type: string
         default: ""
@@ -34,8 +34,8 @@ jobs:
 
     env:
       FIJI_DOWNLOAD_URL: "https://downloads.imagej.net/fiji/latest/fiji-latest-linux64-jdk.zip"
-      IMAGEJ_UPDATE_SITE_NAME: "ObjectIntensityProfiling"
-      IMAGEJ_UPDATE_SITE_URL: "https://sites.imagej.net/ObjectIntensityProfiling/"
+      IMAGEJ_UPDATE_SITE_NAME: "Object-Intensity-Profiling"
+      IMAGEJ_UPDATE_SITE_URL: "https://sites.imagej.net/Object-Intensity-Profiling/"
       GH_TOKEN: ${{ github.token }}
       # Pinned to the GitHub Release: the upload uses that exact jar, not a fresh build.
       RELEASE_TAG: "v0.3.1"
@@ -51,7 +51,7 @@ jobs:
       ARTIFACT_NAME: ""
       REPLACE_GLOB: "plugins/Object_Intensity_Profiling-*.jar"
       UPLOAD_MODE: "single-file"
-      LIVE_UPLOAD_CONFIRMATION: "UPLOAD ObjectIntensityProfiling"
+      LIVE_UPLOAD_CONFIRMATION: "UPLOAD Object-Intensity-Profiling"
       DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
       CLEAR_STALE_LOCK: ${{ github.event_name == 'workflow_dispatch' && inputs.clear_stale_lock || 'false' }}
 

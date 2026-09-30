@@ -39,7 +39,7 @@ Found by the first run of the dialogs in a real (non-headless) Fiji and by a rev
 
 ## 0.3.0 - 2026-09-29
 
-First release on the Fiji update site (`ObjectIntensityProfiling`). New measurements are
+First release on the Fiji update site (`Object-Intensity-Profiling`). New measurements are
 off by default; with default settings every existing output is byte-identical to 0.2.0.
 
 ### Added
